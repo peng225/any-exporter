@@ -1,0 +1,34 @@
+metrics:
+- name: test
+  type: 0
+  labels:
+  - aaa
+  - bbb
+- name: test2
+  type: 1
+  labels:
+  - aaa
+  - ddd
+input_series:
+- metrics_name: test
+  data:
+  - labels:
+    - key: aaa
+      value: hoge
+    - key: bbb
+      value: fuga
+    values: '1+1x3 0 0'
+  - labels:
+    - key: aaa
+      value: hoge
+    - key: bbb
+      value: piyo
+    values: '0 0 1+0x3'
+- metrics_name: test2
+  data:
+  - labels:
+    - key: aaa
+      value: pomb
+    - key: ddd
+      value: puri
+    values: '0 1 0 1 0 1'
