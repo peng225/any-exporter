@@ -54,11 +54,13 @@ type parsedMetricsData struct {
 }
 
 type counterExporter struct {
+	metricsName       string
 	counterVec        *prometheus.CounterVec
 	parsedMetricsData []*parsedMetricsData
 }
 
 type gaugeExporter struct {
+	metricsName       string
 	gaugeVec          *prometheus.GaugeVec
 	parsedMetricsData []*parsedMetricsData
 }
@@ -185,7 +187,8 @@ func Register(yamlData []byte) error {
 						return fmt.Errorf("metrics definition not found: %s", is.MetricsName)
 					}
 					counterExporters[is.MetricsName] = &counterExporter{
-						counterVec: counters[is.MetricsName],
+						metricsName: is.MetricsName,
+						counterVec:  counters[is.MetricsName],
 						parsedMetricsData: []*parsedMetricsData{
 							pmd,
 						},
@@ -199,7 +202,8 @@ func Register(yamlData []byte) error {
 						return fmt.Errorf("metrics definition not found: %s", is.MetricsName)
 					}
 					gaugeExporters[is.MetricsName] = &gaugeExporter{
-						gaugeVec: gauges[is.MetricsName],
+						metricsName: is.MetricsName,
+						gaugeVec:    gauges[is.MetricsName],
 						parsedMetricsData: []*parsedMetricsData{
 							pmd,
 						},
@@ -221,8 +225,7 @@ func Update() {
 	for _, exporter := range counterExporters {
 		for _, pmd := range exporter.parsedMetricsData {
 			if len(pmd.values) == 0 {
-				// TODO: show which metrics has empty value
-				log.Printf("empty value found")
+				log.Printf("empty value found for %s.", exporter.metricsName)
 				continue
 			}
 			exporter.counterVec.With(pmd.labels).Add(float64(pmd.values[0]))
@@ -233,8 +236,7 @@ func Update() {
 	for _, exporter := range gaugeExporters {
 		for _, pmd := range exporter.parsedMetricsData {
 			if len(pmd.values) == 0 {
-				// TODO: show which metrics has empty value
-				log.Printf("empty value found")
+				log.Printf("empty value found for %s.", exporter.metricsName)
 				continue
 			}
 			exporter.gaugeVec.With(pmd.labels).Set(float64(pmd.values[0]))
