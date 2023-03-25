@@ -3,6 +3,7 @@ package exporter
 import (
 	"fmt"
 	"log"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -250,30 +251,51 @@ func Register(yamlData []byte) error {
 	return nil
 }
 
+func deleteEntriesFromParsedMetricsData(toBeDeletedDataIndex []int, parsedMetricsData []*parsedMetricsData) []*parsedMetricsData {
+	sort.Slice(toBeDeletedDataIndex, func(i, j int) bool {
+		return toBeDeletedDataIndex[i] > toBeDeletedDataIndex[j]
+	})
+	for _, delIndex := range toBeDeletedDataIndex {
+		parsedMetricsData[delIndex] = parsedMetricsData[len(parsedMetricsData)-1]
+		parsedMetricsData = parsedMetricsData[:len(parsedMetricsData)-1]
+	}
+	return parsedMetricsData
+}
+
 func Update() {
 	mu.Lock()
 	defer mu.Unlock()
 
 	for _, exporter := range counterExporters {
-		for _, pmd := range exporter.parsedMetricsData {
-			if len(pmd.values) == 0 {
-				log.Printf("empty value found for %s.", exporter.metricsName)
-				continue
-			}
+		if len(exporter.parsedMetricsData) == 0 {
+			continue
+		}
+		toBeDeletedDataIndex := make([]int, 0)
+		for i, pmd := range exporter.parsedMetricsData {
 			exporter.counterVec.With(pmd.labels).Add(float64(pmd.values[0]))
 			pmd.values = pmd.values[1:]
+			if len(pmd.values) == 0 {
+				log.Printf("empty value found for %s.", exporter.metricsName)
+				toBeDeletedDataIndex = append(toBeDeletedDataIndex, i)
+			}
 		}
+		exporter.parsedMetricsData = deleteEntriesFromParsedMetricsData(toBeDeletedDataIndex, exporter.parsedMetricsData)
 	}
 
 	for _, exporter := range gaugeExporters {
-		for _, pmd := range exporter.parsedMetricsData {
-			if len(pmd.values) == 0 {
-				log.Printf("empty value found for %s.", exporter.metricsName)
-				continue
-			}
+		if len(exporter.parsedMetricsData) == 0 {
+			continue
+		}
+		toBeDeletedDataIndex := make([]int, 0)
+		for i, pmd := range exporter.parsedMetricsData {
 			exporter.gaugeVec.With(pmd.labels).Set(float64(pmd.values[0]))
 			pmd.values = pmd.values[1:]
+			if len(pmd.values) == 0 {
+				log.Printf("empty value found for %s.", exporter.metricsName)
+				toBeDeletedDataIndex = append(toBeDeletedDataIndex, i)
+			}
 		}
+		exporter.parsedMetricsData = deleteEntriesFromParsedMetricsData(toBeDeletedDataIndex, exporter.parsedMetricsData)
 	}
 }
 
