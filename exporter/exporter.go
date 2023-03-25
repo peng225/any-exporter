@@ -93,16 +93,47 @@ func parseValues(values string) ([]int, error) {
 	tokens := strings.Split(values, " ")
 	for _, token := range tokens {
 		if strings.Contains(token, "x") {
+			initStr := ""
+			stepStr := ""
+			timesStr := ""
 			tmpToken := strings.Split(token, "+")
-			initStr := tmpToken[0]
+			if len(tmpToken) == 2 {
+				// 1+2x3 or -1+2x3 style
+				initStr = tmpToken[0]
+				stepAndTimes := strings.Split(tmpToken[1], "x")
+				stepStr = stepAndTimes[0]
+				timesStr = stepAndTimes[1]
+			} else if len(tmpToken) == 1 {
+				tmpToken = strings.Split(token, "-")
+				if len(tmpToken) == 2 {
+					// 1-2x3 style
+					initStr = tmpToken[0]
+					stepAndTimes := strings.Split(tmpToken[1], "x")
+					stepStr = "-" + stepAndTimes[0]
+					timesStr = stepAndTimes[1]
+				} else if len(tmpToken) == 3 {
+					// -1-2x3
+					initStr = "-" + tmpToken[1]
+					stepAndTimes := strings.Split(tmpToken[2], "x")
+					stepStr = "-" + stepAndTimes[0]
+					timesStr = stepAndTimes[1]
+				} else if len(tmpToken) == 1 {
+					// 1x3 style (shorthand for '1+0x3')
+					initAndTimes := strings.Split(tmpToken[0], "x")
+					initStr = initAndTimes[0]
+					timesStr = initAndTimes[1]
+					stepStr = "0"
+				} else {
+					return nil, fmt.Errorf("invalid values format %s", values)
+				}
+			} else {
+				return nil, fmt.Errorf("invalid values format %s", values)
+			}
+
 			init, err := strconv.Atoi(initStr)
 			if err != nil {
 				return nil, err
 			}
-
-			tmpToken = strings.Split(tmpToken[1], "x")
-			stepStr := tmpToken[0]
-			timesStr := tmpToken[1]
 			step, err := strconv.Atoi(stepStr)
 			if err != nil {
 				return nil, err
@@ -118,6 +149,7 @@ func parseValues(values string) ([]int, error) {
 				result = append(result, lastVal+step)
 			}
 		} else {
+			// Just a single number
 			val, err := strconv.Atoi(token)
 			if err != nil {
 				return nil, err
