@@ -165,6 +165,9 @@ func Register(yamlData []byte) error {
 			switch types[is.MetricsName] {
 			case Counter:
 				if _, ok := counterExporters[is.MetricsName]; !ok {
+					if _, ok := counters[is.MetricsName]; !ok {
+						return fmt.Errorf("metrics definition not found: %s", is.MetricsName)
+					}
 					counterExporters[is.MetricsName] = &counterExporter{
 						counterVec: counters[is.MetricsName],
 						parsedMetricsData: []*parsedMetricsData{
@@ -176,6 +179,9 @@ func Register(yamlData []byte) error {
 				}
 			case Gauge:
 				if _, ok := gaugeExporters[is.MetricsName]; !ok {
+					if _, ok := gauges[is.MetricsName]; !ok {
+						return fmt.Errorf("metrics definition not found: %s", is.MetricsName)
+					}
 					gaugeExporters[is.MetricsName] = &gaugeExporter{
 						gaugeVec: gauges[is.MetricsName],
 						parsedMetricsData: []*parsedMetricsData{
@@ -183,7 +189,7 @@ func Register(yamlData []byte) error {
 						},
 					}
 				} else {
-					gaugeExporters[is.MetricsName].parsedMetricsData = append(counterExporters[is.MetricsName].parsedMetricsData, pmd)
+					gaugeExporters[is.MetricsName].parsedMetricsData = append(gaugeExporters[is.MetricsName].parsedMetricsData, pmd)
 				}
 			}
 		}
@@ -195,7 +201,6 @@ func Register(yamlData []byte) error {
 func Update() {
 	for _, exporter := range counterExporters {
 		for _, pmd := range exporter.parsedMetricsData {
-			log.Println(pmd.values[0])
 			exporter.counterVec.With(pmd.labels).Add(float64(pmd.values[0]))
 			pmd.values = pmd.values[1:]
 		}
@@ -203,7 +208,6 @@ func Update() {
 
 	for _, exporter := range gaugeExporters {
 		for _, pmd := range exporter.parsedMetricsData {
-			log.Println(pmd.values[0])
 			exporter.gaugeVec.With(pmd.labels).Set(float64(pmd.values[0]))
 			pmd.values = pmd.values[1:]
 		}
