@@ -1,11 +1,11 @@
 metrics:
 - name: test
-  type: 0
+  type: counter
   labels:
   - aaa
   - bbb
 - name: test2
-  type: 1
+  type: gauge
   labels:
   - aaa
   - ddd
@@ -17,13 +17,13 @@ input_series:
       value: hoge
     - key: bbb
       value: fuga
-    values: '1+1x3 0 0'
+    values: '1+1x3 0'
   - labels:
     - key: aaa
       value: hoge
     - key: bbb
       value: piyo
-    values: '0 0 1+0x3'
+    values: '0 0 1+0x4'
 - metrics_name: test2
   data:
   - labels:

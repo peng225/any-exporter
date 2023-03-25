@@ -9,11 +9,18 @@ import (
 )
 
 func RecipeHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
+	switch r.Method {
+	case http.MethodPost:
+		RecipePostHandler(w, r)
+	case http.MethodDelete:
+		RecipeDeleteHandler(w, r)
+	default:
 		log.Printf("invalid method: %s", r.Method)
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
 	}
+}
+
+func RecipePostHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Body == nil {
 		log.Println("request body is nil")
 		w.WriteHeader(http.StatusBadRequest)
@@ -33,6 +40,17 @@ func RecipeHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+
+	log.Println("recipe post request completed successfully")
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func RecipeDeleteHandler(w http.ResponseWriter, r *http.Request) {
+	force := r.URL.Query().Get("force") == "true"
+	exporter.Clear(force)
+
+	log.Println("recipe delete request completed successfully")
 
 	w.WriteHeader(http.StatusOK)
 }

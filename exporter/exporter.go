@@ -5,6 +5,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -19,15 +20,17 @@ const (
 	Histogram
 )
 
+var strToMetricsType map[string]metricsType
+
 type metricsRecipe struct {
 	Metrics     []metrics     `yaml:"metrics"`
 	InputSeries []inputSeries `yaml:"input_series"`
 }
 
 type metrics struct {
-	Name   string      `yaml:"name"`
-	Type   metricsType `yaml:"type"`
-	Labels []string    `yaml:"labels"`
+	Name   string   `yaml:"name"`
+	Type   string   `yaml:"type"`
+	Labels []string `yaml:"labels"`
 }
 
 type inputSeries struct {
@@ -67,7 +70,13 @@ var types map[string]metricsType
 var counterExporters map[string]*counterExporter
 var gaugeExporters map[string]*gaugeExporter
 
+var mu sync.Mutex
+
 func init() {
+	strToMetricsType = make(map[string]metricsType)
+	strToMetricsType["counter"] = Counter
+	strToMetricsType["gauge"] = Gauge
+
 	counters = make(map[string]*prometheus.CounterVec)
 	gauges = make(map[string]*prometheus.GaugeVec)
 	types = make(map[string]metricsType)
@@ -81,7 +90,7 @@ func parseValues(values string) ([]int, error) {
 
 	tokens := strings.Split(values, " ")
 	for _, token := range tokens {
-		if strings.Contains(token, "+") && strings.Contains(token, "x") {
+		if strings.Contains(token, "x") {
 			tmpToken := strings.Split(token, "+")
 			initStr := tmpToken[0]
 			init, err := strconv.Atoi(initStr)
@@ -119,6 +128,9 @@ func parseValues(values string) ([]int, error) {
 }
 
 func Register(yamlData []byte) error {
+	mu.Lock()
+	defer mu.Unlock()
+
 	var recipe metricsRecipe
 	err := yaml.Unmarshal(yamlData, &recipe)
 	if err != nil {
@@ -126,8 +138,12 @@ func Register(yamlData []byte) error {
 	}
 
 	for _, m := range recipe.Metrics {
-		types[m.Name] = m.Type
-		switch m.Type {
+		var ok bool
+		types[m.Name], ok = strToMetricsType[m.Type]
+		if !ok {
+			return fmt.Errorf("invalid metrics type %s specified for %s", m.Type, m.Name)
+		}
+		switch types[m.Name] {
 		case Counter:
 			counters[m.Name] = promauto.NewCounterVec(
 				prometheus.CounterOpts{
@@ -143,7 +159,7 @@ func Register(yamlData []byte) error {
 				m.Labels,
 			)
 		default:
-			return fmt.Errorf("unknown type: %d", m.Type)
+			panic(fmt.Sprintf("unknown type: %d", types[m.Name]))
 		}
 	}
 
@@ -199,8 +215,16 @@ func Register(yamlData []byte) error {
 }
 
 func Update() {
+	mu.Lock()
+	defer mu.Unlock()
+
 	for _, exporter := range counterExporters {
 		for _, pmd := range exporter.parsedMetricsData {
+			if len(pmd.values) == 0 {
+				// TODO: show which metrics has empty value
+				log.Printf("empty value found")
+				continue
+			}
 			exporter.counterVec.With(pmd.labels).Add(float64(pmd.values[0]))
 			pmd.values = pmd.values[1:]
 		}
@@ -208,18 +232,29 @@ func Update() {
 
 	for _, exporter := range gaugeExporters {
 		for _, pmd := range exporter.parsedMetricsData {
+			if len(pmd.values) == 0 {
+				// TODO: show which metrics has empty value
+				log.Printf("empty value found")
+				continue
+			}
 			exporter.gaugeVec.With(pmd.labels).Set(float64(pmd.values[0]))
 			pmd.values = pmd.values[1:]
 		}
 	}
 }
 
-func Clean() {
+func Clear(force bool) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	toBeDeletedMetrics := make([]string, 0)
 	for metName, exporter := range counterExporters {
 		shouldBeRemoved := true
-		for _, pmd := range exporter.parsedMetricsData {
-			if len(pmd.values) != 0 {
-				shouldBeRemoved = false
+		if !force {
+			for _, pmd := range exporter.parsedMetricsData {
+				if len(pmd.values) != 0 {
+					shouldBeRemoved = false
+				}
 			}
 		}
 		if shouldBeRemoved {
@@ -227,17 +262,23 @@ func Clean() {
 			if !prometheus.Unregister(exporter.counterVec) {
 				log.Printf("unregister failed. metricsName = %s", metName)
 			}
-			delete(counterExporters, metName)
-			delete(counters, metName)
-			delete(types, metName)
+			toBeDeletedMetrics = append(toBeDeletedMetrics, metName)
 		}
 	}
+	for _, metName := range toBeDeletedMetrics {
+		delete(counterExporters, metName)
+		delete(counters, metName)
+		delete(types, metName)
+	}
 
+	toBeDeletedMetrics = make([]string, 0)
 	for metName, exporter := range gaugeExporters {
 		shouldBeRemoved := true
-		for _, pmd := range exporter.parsedMetricsData {
-			if len(pmd.values) != 0 {
-				shouldBeRemoved = false
+		if !force {
+			for _, pmd := range exporter.parsedMetricsData {
+				if len(pmd.values) != 0 {
+					shouldBeRemoved = false
+				}
 			}
 		}
 		if shouldBeRemoved {
@@ -245,9 +286,12 @@ func Clean() {
 			if !prometheus.Unregister(exporter.gaugeVec) {
 				log.Printf("unregister failed. metricsName = %s", metName)
 			}
-			delete(gaugeExporters, metName)
-			delete(gauges, metName)
-			delete(types, metName)
+			toBeDeletedMetrics = append(toBeDeletedMetrics, metName)
 		}
+	}
+	for _, metName := range toBeDeletedMetrics {
+		delete(gaugeExporters, metName)
+		delete(gauges, metName)
+		delete(types, metName)
 	}
 }

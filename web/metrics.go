@@ -13,5 +13,4 @@ type MetricsHandler struct {
 func (h MetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	exporter.Update()
 	h.ChildHandler.ServeHTTP(w, r)
-	exporter.Clean()
 }
