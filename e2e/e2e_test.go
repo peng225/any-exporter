@@ -19,6 +19,7 @@ func TestBasicScenario(t *testing.T) {
 	resp, err := http.Post(baseURL+"/recipe", "application/yaml", f)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	f.Close()
 
 	// get metrics 1
 	resp, err = http.Get(baseURL + "/metrics")
@@ -46,7 +47,16 @@ func TestBasicScenario(t *testing.T) {
 	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val2"} 1`))
 	assert.True(t, strings.Contains(metrics, `test2{aaa="aaa_val2",ccc="ccc_val1"} 1`))
 
-	// get metrics 3 (the value of test2{aaa="aaa_val2", ccc="ccc_val1"} will be drained)
+	// post additional recipe
+	f, err = os.Open("additional-recipe.yaml")
+	require.NoError(t, err)
+
+	resp, err = http.Post(baseURL+"/recipe", "application/yaml", f)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	f.Close()
+
+	// get metrics 3 (the value of test2 will be drained)
 	resp, err = http.Get(baseURL + "/metrics")
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -58,6 +68,7 @@ func TestBasicScenario(t *testing.T) {
 	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val1"} 6`))
 	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val2"} 2`))
 	assert.True(t, strings.Contains(metrics, `test2{aaa="aaa_val2",ccc="ccc_val1"} 0`))
+	assert.True(t, strings.Contains(metrics, `test2{aaa="aaa_val2",ccc="ccc_val2"} 2`))
 
 	// get metrics 4 (the value of test1{aaa="aaa_val1", bbb="bbb_val1"} will be drained)
 	resp, err = http.Get(baseURL + "/metrics")
@@ -71,6 +82,7 @@ func TestBasicScenario(t *testing.T) {
 	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val1"} 6`))
 	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val2"} 3`))
 	assert.True(t, strings.Contains(metrics, `test2{aaa="aaa_val2",ccc="ccc_val1"} 0`))
+	assert.True(t, strings.Contains(metrics, `test2{aaa="aaa_val2",ccc="ccc_val2"} 2`))
 
 	// delete recipe
 	req, err := http.NewRequest(http.MethodDelete, baseURL+"/recipe", nil)
