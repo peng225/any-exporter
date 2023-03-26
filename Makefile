@@ -8,7 +8,7 @@ $(PROMBLOCK): $(GO_FILES)
 
 .PHONY: test
 test: $(PROMBLOCK)
-	go test -v ./...
+	go test -v `go list ./... | grep -v e2e`
 
 .PHONY: clean
 clean:

@@ -1,5 +1,5 @@
 metrics:
-- name: test
+- name: test1
   type: counter
   labels:
   - aaa
@@ -8,27 +8,27 @@ metrics:
   type: gauge
   labels:
   - aaa
-  - ddd
+  - ccc
 input_series:
-- metrics_name: test
+- metrics_name: test1
   data:
   - labels:
     - key: aaa
-      value: hoge
+      value: aaa_val1
     - key: bbb
-      value: fuga
-    values: '1+1x3 0'
+      value: bbb_val1
+    values: '1+1x2 0'
   - labels:
     - key: aaa
-      value: hoge
+      value: aaa_val1
     - key: bbb
-      value: piyo
-    values: '0 0 1+0x4'
+      value: bbb_val2
+    values: '0 1 1+0x3'
 - metrics_name: test2
   data:
   - labels:
     - key: aaa
-      value: pomb
-    - key: ddd
-      value: puri
-    values: '0 1 0 1 0 1'
+      value: aaa_val2
+    - key: ccc
+      value: ccc_val1
+    values: '0 1 0'
