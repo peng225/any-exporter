@@ -174,12 +174,14 @@ func Register(yamlData []byte) error {
 
 	for _, m := range recipe.Metrics {
 		var ok bool
-		types[m.Name], ok = strToMetricsType[m.Type]
-		if !ok {
+		if _, ok = strToMetricsType[m.Type]; !ok {
 			return fmt.Errorf("invalid metrics type %s specified for %s", m.Type, m.Name)
 		}
-		switch types[m.Name] {
+		switch strToMetricsType[m.Type] {
 		case Counter:
+			if _, ok := counters[m.Name]; ok {
+				clearSpecifiedMetrics(m.Name)
+			}
 			counters[m.Name] = promauto.NewCounterVec(
 				prometheus.CounterOpts{
 					Name: m.Name,
@@ -187,6 +189,9 @@ func Register(yamlData []byte) error {
 				m.Labels,
 			)
 		case Gauge:
+			if _, ok := gauges[m.Name]; ok {
+				clearSpecifiedMetrics(m.Name)
+			}
 			gauges[m.Name] = promauto.NewGaugeVec(
 				prometheus.GaugeOpts{
 					Name: m.Name,
@@ -196,6 +201,7 @@ func Register(yamlData []byte) error {
 		default:
 			panic(fmt.Sprintf("unknown type: %d", types[m.Name]))
 		}
+		types[m.Name] = strToMetricsType[m.Type]
 	}
 
 	for _, is := range recipe.InputSeries {
@@ -217,7 +223,7 @@ func Register(yamlData []byte) error {
 			case Counter:
 				if _, ok := counterExporters[is.MetricsName]; !ok {
 					if _, ok := counters[is.MetricsName]; !ok {
-						return fmt.Errorf("metrics definition not found: %s", is.MetricsName)
+						return fmt.Errorf("counter metrics definition not found: %s", is.MetricsName)
 					}
 					counterExporters[is.MetricsName] = &counterExporter{
 						metricsName: is.MetricsName,
@@ -232,7 +238,7 @@ func Register(yamlData []byte) error {
 			case Gauge:
 				if _, ok := gaugeExporters[is.MetricsName]; !ok {
 					if _, ok := gauges[is.MetricsName]; !ok {
-						return fmt.Errorf("metrics definition not found: %s", is.MetricsName)
+						return fmt.Errorf("gauge metrics definition not found: %s", is.MetricsName)
 					}
 					gaugeExporters[is.MetricsName] = &gaugeExporter{
 						metricsName: is.MetricsName,
@@ -314,20 +320,10 @@ func Clear(force bool) {
 			}
 		}
 		if shouldBeRemoved {
-			log.Printf("metrics %v is to be removed", metName)
-			if !prometheus.Unregister(exporter.counterVec) {
-				log.Printf("unregister failed. metricsName = %s", metName)
-			}
 			toBeDeletedMetrics = append(toBeDeletedMetrics, metName)
 		}
 	}
-	for _, metName := range toBeDeletedMetrics {
-		delete(counterExporters, metName)
-		delete(counters, metName)
-		delete(types, metName)
-	}
 
-	toBeDeletedMetrics = make([]string, 0)
 	for metName, exporter := range gaugeExporters {
 		shouldBeRemoved := true
 		if !force {
@@ -338,16 +334,31 @@ func Clear(force bool) {
 			}
 		}
 		if shouldBeRemoved {
-			log.Printf("metrics %v is to be removed", metName)
-			if !prometheus.Unregister(exporter.gaugeVec) {
-				log.Printf("unregister failed. metricsName = %s", metName)
-			}
 			toBeDeletedMetrics = append(toBeDeletedMetrics, metName)
 		}
 	}
 	for _, metName := range toBeDeletedMetrics {
-		delete(gaugeExporters, metName)
-		delete(gauges, metName)
-		delete(types, metName)
+		clearSpecifiedMetrics(metName)
 	}
+}
+
+// Lock should be acquired by the caller.
+func clearSpecifiedMetrics(metricsName string) {
+	switch types[metricsName] {
+	case Counter:
+		if !prometheus.Unregister(counterExporters[metricsName].counterVec) {
+			log.Printf("unregister failed. metricsName = %s", metricsName)
+		}
+		delete(counterExporters, metricsName)
+		delete(counters, metricsName)
+	case Gauge:
+		if !prometheus.Unregister(gaugeExporters[metricsName].gaugeVec) {
+			log.Printf("unregister failed. metricsName = %s", metricsName)
+		}
+		delete(gaugeExporters, metricsName)
+		delete(gauges, metricsName)
+	}
+	delete(types, metricsName)
+
+	log.Printf("metrics %v was removed", metricsName)
 }

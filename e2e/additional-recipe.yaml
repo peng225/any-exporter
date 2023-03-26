@@ -1,0 +1,10 @@
+metrics: []
+input_series:
+- metrics_name: test2
+  data:
+  - labels:
+    - key: aaa
+      value: aaa_val2
+    - key: ccc
+      value: ccc_val2
+    values: '2'
