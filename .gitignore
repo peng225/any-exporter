@@ -15,4 +15,5 @@
 # vendor/
 
 promblock
+!charts/promblock
 e2e/bin
