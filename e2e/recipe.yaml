@@ -1,34 +1,33 @@
-metrics:
-- name: test1
+spec:
+  name: test1
   type: counter
   labels:
   - aaa
   - bbb
-- name: test2
+data:
+- labels:
+  - key: aaa
+    value: aaa_val1
+  - key: bbb
+    value: bbb_val1
+  sequence: '1+1x2 0'
+- labels:
+  - key: aaa
+    value: aaa_val1
+  - key: bbb
+    value: bbb_val2
+  sequence: '0 1 1+0x3'
+---
+spec:
+  name: test2
   type: gauge
   labels:
   - aaa
   - ccc
-input_series:
-- metrics_name: test1
-  data:
-  - labels:
-    - key: aaa
-      value: aaa_val1
-    - key: bbb
-      value: bbb_val1
-    values: '1+1x2 0'
-  - labels:
-    - key: aaa
-      value: aaa_val1
-    - key: bbb
-      value: bbb_val2
-    values: '0 1 1+0x3'
-- metrics_name: test2
-  data:
-  - labels:
-    - key: aaa
-      value: aaa_val2
-    - key: ccc
-      value: ccc_val1
-    values: '0 1 0'
+data:
+- labels:
+  - key: aaa
+    value: aaa_val2
+  - key: ccc
+    value: ccc_val1
+  sequence: '0 1 0'
