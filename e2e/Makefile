@@ -2,19 +2,19 @@ KIND_VERSION = v0.17.0
 HELM_VERSION = v3.11.2
 KIND = bin/kind
 HELM = bin/hel
-ANY-EXPORTER := ../any-exporter
+ANY_EXPORTER := ../any-exporter
 
 .PHONY: test
-test: $(ANY-EXPORTER)
-	$(ANY-EXPORTER) &
+test: $(ANY_EXPORTER)
+	$(ANY_EXPORTER) &
 	go test -v
-	pkill $(notdir $(ANY-EXPORTER))
+	pkill $(notdir $(ANY_EXPORTER))
 
 .PHONY: test-with-helm
  test-with-helm:
 	go test -v
 
-$(ANY-EXPORTER):
+$(ANY_EXPORTER):
 	make -C ../
 
 .PHONY: setup-by-helm
