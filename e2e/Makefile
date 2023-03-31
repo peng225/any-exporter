@@ -1,8 +1,10 @@
-KIND_VERSION = v0.17.0
-HELM_VERSION = v3.11.2
-KIND = bin/kind
-HELM = bin/hel
+KIND_VERSION := v0.17.0
+HELM_VERSION := v3.11.2
+KIND := bin/kind_$(KIND_VERSION)
+HELM := bin/helm_$(HELM_VERSION)
 ANY_EXPORTER := ../any-exporter
+IMAGE_NAME := ghcr.io/peng225/any-exporter
+IMAGE_TAG := dev
 
 .PHONY: test
 test: $(ANY_EXPORTER)
@@ -11,7 +13,7 @@ test: $(ANY_EXPORTER)
 	pkill $(notdir $(ANY_EXPORTER))
 
 .PHONY: test-with-helm
- test-with-helm:
+test-with-helm:
 	go test -v
 
 $(ANY_EXPORTER):
@@ -21,7 +23,9 @@ $(ANY_EXPORTER):
 setup-by-helm: $(KIND) $(HELM)
 	$(KIND) create cluster
 	kubectl create ns any-exporter
-	$(HELM) install --namespace any-exporter any-exporter ../charts/any-exporter
+	docker build -t $(IMAGE_NAME):$(IMAGE_TAG) ..
+	$(KIND) load docker-image $(IMAGE_NAME):$(IMAGE_TAG)
+	$(HELM) install --namespace any-exporter --set image.tag=$(IMAGE_TAG) any-exporter ../charts/any-exporter
 	sleep 10
 	kubectl wait pods -n any-exporter -l app.kubernetes.io/name=any-exporter --for condition=Ready --timeout=30s
 	kubectl get all -n any-exporter
@@ -41,6 +45,6 @@ bin:
 	mkdir $@
 
 .PHONY: clean
-clean:
+clean: $(KIND)
 	pkill kubectl
 	$(KIND) delete cluster
