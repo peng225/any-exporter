@@ -1,7 +1,9 @@
 package exporter
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"log"
 	"sort"
 	"strconv"
@@ -24,24 +26,19 @@ const (
 var strToMetricsType map[string]metricsType
 
 type metricsRecipe struct {
-	Metrics     []metrics     `yaml:"metrics"`
-	InputSeries []inputSeries `yaml:"input_series"`
+	Spec spec          `yaml:"spec"`
+	Data []metricsData `yaml:"data"`
 }
 
-type metrics struct {
+type spec struct {
 	Name   string   `yaml:"name"`
 	Type   string   `yaml:"type"`
 	Labels []string `yaml:"labels"`
 }
 
-type inputSeries struct {
-	MetricsName string        `yaml:"metrics_name"`
-	Data        []metricsData `yaml:"data"`
-}
-
 type metricsData struct {
-	Labels []label `yaml:"labels"`
-	Values string  `yaml:"values"`
+	Labels   []label `yaml:"labels"`
+	Sequence string  `yaml:"sequence"`
 }
 
 type label struct {
@@ -50,24 +47,20 @@ type label struct {
 }
 
 type parsedMetricsData struct {
-	labels map[string]string
-	values []int
+	labels   map[string]string
+	sequence []int
 }
 
 type counterExporter struct {
-	metricsName       string
 	counterVec        *prometheus.CounterVec
 	parsedMetricsData []*parsedMetricsData
 }
 
 type gaugeExporter struct {
-	metricsName       string
 	gaugeVec          *prometheus.GaugeVec
 	parsedMetricsData []*parsedMetricsData
 }
 
-var counters map[string]*prometheus.CounterVec
-var gauges map[string]*prometheus.GaugeVec
 var types map[string]metricsType
 
 var counterExporters map[string]*counterExporter
@@ -80,18 +73,16 @@ func init() {
 	strToMetricsType["counter"] = Counter
 	strToMetricsType["gauge"] = Gauge
 
-	counters = make(map[string]*prometheus.CounterVec)
-	gauges = make(map[string]*prometheus.GaugeVec)
 	types = make(map[string]metricsType)
 
 	counterExporters = make(map[string]*counterExporter)
 	gaugeExporters = make(map[string]*gaugeExporter)
 }
 
-func parseValues(values string) ([]int, error) {
+func parseSequence(sequence string) ([]int, error) {
 	result := make([]int, 0)
 
-	tokens := strings.Split(values, " ")
+	tokens := strings.Split(sequence, " ")
 	for _, token := range tokens {
 		if strings.Contains(token, "x") {
 			initStr := ""
@@ -125,10 +116,10 @@ func parseValues(values string) ([]int, error) {
 					timesStr = initAndTimes[1]
 					stepStr = "0"
 				} else {
-					return nil, fmt.Errorf("invalid values format %s", values)
+					return nil, fmt.Errorf("invalid values format %s", sequence)
 				}
 			} else {
-				return nil, fmt.Errorf("invalid values format %s", values)
+				return nil, fmt.Errorf("invalid values format %s", sequence)
 			}
 
 			init, err := strconv.Atoi(initStr)
@@ -162,96 +153,108 @@ func parseValues(values string) ([]int, error) {
 	return result, nil
 }
 
+func unmarshalAllRecipe(in []byte, out *[]metricsRecipe) error {
+	r := bytes.NewReader(in)
+	decoder := yaml.NewDecoder(r)
+	for {
+		var mr metricsRecipe
+		if err := decoder.Decode(&mr); err != nil {
+			if err != io.EOF {
+				return err
+			}
+			break
+		}
+		*out = append(*out, mr)
+	}
+	return nil
+}
+
 func Register(yamlData []byte) error {
 	mu.Lock()
 	defer mu.Unlock()
 
-	var recipe metricsRecipe
-	err := yaml.Unmarshal(yamlData, &recipe)
+	var recipe []metricsRecipe
+	err := unmarshalAllRecipe(yamlData, &recipe)
 	if err != nil {
 		return err
 	}
 
-	for _, m := range recipe.Metrics {
-		var ok bool
-		if _, ok = strToMetricsType[m.Type]; !ok {
-			return fmt.Errorf("invalid metrics type %s specified for %s", m.Type, m.Name)
+	for _, r := range recipe {
+		if _, ok := strToMetricsType[r.Spec.Type]; !ok {
+			return fmt.Errorf("invalid metrics type %s specified for %s", r.Spec.Type, r.Spec.Name)
 		}
-		switch strToMetricsType[m.Type] {
+
+		switch strToMetricsType[r.Spec.Type] {
 		case Counter:
-			if _, ok := counters[m.Name]; ok {
-				clearSpecifiedMetrics(m.Name)
+			if _, ok := counterExporters[r.Spec.Name]; ok {
+				clearSpecifiedMetrics(r.Spec.Name)
 			}
-			counters[m.Name] = promauto.NewCounterVec(
+
+			counterVec := promauto.NewCounterVec(
 				prometheus.CounterOpts{
-					Name: m.Name,
+					Name: r.Spec.Name,
 				},
-				m.Labels,
+				r.Spec.Labels,
 			)
+
+			var pmds []*parsedMetricsData
+			for _, metData := range r.Data {
+				parsedSeq, err := parseSequence(metData.Sequence)
+				if err != nil {
+					return err
+				}
+
+				labels := make(map[string]string)
+				for _, l := range metData.Labels {
+					labels[l.Key] = l.Value
+				}
+
+				pmds = append(pmds, &parsedMetricsData{
+					labels:   labels,
+					sequence: parsedSeq,
+				})
+			}
+			counterExporters[r.Spec.Name] = &counterExporter{
+				counterVec:        counterVec,
+				parsedMetricsData: pmds,
+			}
 		case Gauge:
-			if _, ok := gauges[m.Name]; ok {
-				clearSpecifiedMetrics(m.Name)
+			if _, ok := gaugeExporters[r.Spec.Name]; ok {
+				clearSpecifiedMetrics(r.Spec.Name)
 			}
-			gauges[m.Name] = promauto.NewGaugeVec(
+
+			gaugeVec := promauto.NewGaugeVec(
 				prometheus.GaugeOpts{
-					Name: m.Name,
+					Name: r.Spec.Name,
 				},
-				m.Labels,
+				r.Spec.Labels,
 			)
+
+			var pmds []*parsedMetricsData
+			for _, metData := range r.Data {
+				parsedSeq, err := parseSequence(metData.Sequence)
+				if err != nil {
+					return err
+				}
+
+				labels := make(map[string]string)
+				for _, l := range metData.Labels {
+					labels[l.Key] = l.Value
+				}
+
+				pmds = append(pmds, &parsedMetricsData{
+					labels:   labels,
+					sequence: parsedSeq,
+				})
+			}
+			gaugeExporters[r.Spec.Name] = &gaugeExporter{
+				gaugeVec:          gaugeVec,
+				parsedMetricsData: pmds,
+			}
 		default:
-			panic(fmt.Sprintf("unknown type: %d", types[m.Name]))
+			panic(fmt.Sprintf("unknown type: %d", types[r.Spec.Type]))
 		}
-		types[m.Name] = strToMetricsType[m.Type]
-	}
-
-	for _, is := range recipe.InputSeries {
-		for _, metData := range is.Data {
-			parsedValues, err := parseValues(metData.Values)
-			if err != nil {
-				return err
-			}
-
-			labels := make(map[string]string)
-			for _, l := range metData.Labels {
-				labels[l.Key] = l.Value
-			}
-			pmd := &parsedMetricsData{
-				labels: labels,
-				values: parsedValues,
-			}
-			switch types[is.MetricsName] {
-			case Counter:
-				if _, ok := counterExporters[is.MetricsName]; !ok {
-					if _, ok := counters[is.MetricsName]; !ok {
-						return fmt.Errorf("counter metrics definition not found: %s", is.MetricsName)
-					}
-					counterExporters[is.MetricsName] = &counterExporter{
-						metricsName: is.MetricsName,
-						counterVec:  counters[is.MetricsName],
-						parsedMetricsData: []*parsedMetricsData{
-							pmd,
-						},
-					}
-				} else {
-					counterExporters[is.MetricsName].parsedMetricsData = append(counterExporters[is.MetricsName].parsedMetricsData, pmd)
-				}
-			case Gauge:
-				if _, ok := gaugeExporters[is.MetricsName]; !ok {
-					if _, ok := gauges[is.MetricsName]; !ok {
-						return fmt.Errorf("gauge metrics definition not found: %s", is.MetricsName)
-					}
-					gaugeExporters[is.MetricsName] = &gaugeExporter{
-						metricsName: is.MetricsName,
-						gaugeVec:    gauges[is.MetricsName],
-						parsedMetricsData: []*parsedMetricsData{
-							pmd,
-						},
-					}
-				} else {
-					gaugeExporters[is.MetricsName].parsedMetricsData = append(gaugeExporters[is.MetricsName].parsedMetricsData, pmd)
-				}
-			}
-		}
+		types[r.Spec.Name] = strToMetricsType[r.Spec.Type]
 	}
 
 	return nil
@@ -272,32 +275,32 @@ func Update() {
 	mu.Lock()
 	defer mu.Unlock()
 
-	for _, exporter := range counterExporters {
+	for metName, exporter := range counterExporters {
 		if len(exporter.parsedMetricsData) == 0 {
 			continue
 		}
 		toBeDeletedDataIndex := make([]int, 0)
 		for i, pmd := range exporter.parsedMetricsData {
-			exporter.counterVec.With(pmd.labels).Add(float64(pmd.values[0]))
-			pmd.values = pmd.values[1:]
-			if len(pmd.values) == 0 {
-				log.Printf("empty value found for %s.", exporter.metricsName)
+			exporter.counterVec.With(pmd.labels).Add(float64(pmd.sequence[0]))
+			pmd.sequence = pmd.sequence[1:]
+			if len(pmd.sequence) == 0 {
+				log.Printf("empty value found for %s.", metName)
 				toBeDeletedDataIndex = append(toBeDeletedDataIndex, i)
 			}
 		}
 		exporter.parsedMetricsData = deleteEntriesFromParsedMetricsData(toBeDeletedDataIndex, exporter.parsedMetricsData)
 	}
 
-	for _, exporter := range gaugeExporters {
+	for metName, exporter := range gaugeExporters {
 		if len(exporter.parsedMetricsData) == 0 {
 			continue
 		}
 		toBeDeletedDataIndex := make([]int, 0)
 		for i, pmd := range exporter.parsedMetricsData {
-			exporter.gaugeVec.With(pmd.labels).Set(float64(pmd.values[0]))
-			pmd.values = pmd.values[1:]
-			if len(pmd.values) == 0 {
-				log.Printf("empty value found for %s.", exporter.metricsName)
+			exporter.gaugeVec.With(pmd.labels).Set(float64(pmd.sequence[0]))
+			pmd.sequence = pmd.sequence[1:]
+			if len(pmd.sequence) == 0 {
+				log.Printf("empty value found for %s.", metName)
 				toBeDeletedDataIndex = append(toBeDeletedDataIndex, i)
 			}
 		}
@@ -314,7 +317,7 @@ func Clear(force bool) {
 		shouldBeRemoved := true
 		if !force {
 			for _, pmd := range exporter.parsedMetricsData {
-				if len(pmd.values) != 0 {
+				if len(pmd.sequence) != 0 {
 					shouldBeRemoved = false
 				}
 			}
@@ -328,7 +331,7 @@ func Clear(force bool) {
 		shouldBeRemoved := true
 		if !force {
 			for _, pmd := range exporter.parsedMetricsData {
-				if len(pmd.values) != 0 {
+				if len(pmd.sequence) != 0 {
 					shouldBeRemoved = false
 				}
 			}
@@ -350,13 +353,11 @@ func clearSpecifiedMetrics(metricsName string) {
 			log.Printf("unregister failed. metricsName = %s", metricsName)
 		}
 		delete(counterExporters, metricsName)
-		delete(counters, metricsName)
 	case Gauge:
 		if !prometheus.Unregister(gaugeExporters[metricsName].gaugeVec) {
 			log.Printf("unregister failed. metricsName = %s", metricsName)
 		}
 		delete(gaugeExporters, metricsName)
-		delete(gauges, metricsName)
 	}
 	delete(types, metricsName)
 
