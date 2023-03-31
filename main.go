@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/peng225/promblock/web"
+	"github.com/peng225/any-exporter/web"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 

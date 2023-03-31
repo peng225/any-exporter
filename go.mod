@@ -1,4 +1,4 @@
-module github.com/peng225/promblock
+module github.com/peng225/any-exporter
 
 go 1.19
 
