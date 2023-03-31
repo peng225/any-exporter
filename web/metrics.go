@@ -3,7 +3,7 @@ package web
 import (
 	"net/http"
 
-	"github.com/peng225/promblock/exporter"
+	"github.com/peng225/any-exporter/exporter"
 )
 
 type MetricsHandler struct {

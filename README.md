@@ -1,2 +1,2 @@
-# promblock
+# any-exporter
 artificial metrics exporter

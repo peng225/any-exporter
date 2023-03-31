@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "promblock.fullname" . }}
+  name: {{ include "any-exporter.fullname" . }}
   labels:
-    {{- include "promblock.labels" . | nindent 4 }}
+    {{- include "any-exporter.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.service.type }}
   ports:
@@ -12,4 +12,4 @@ spec:
       protocol: TCP
       name: http
   selector:
-    {{- include "promblock.selectorLabels" . | nindent 4 }}
+    {{- include "any-exporter.selectorLabels" . | nindent 4 }}

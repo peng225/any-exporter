@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/peng225/promblock/exporter"
+	"github.com/peng225/any-exporter/exporter"
 )
 
 func RecipeHandler(w http.ResponseWriter, r *http.Request) {
