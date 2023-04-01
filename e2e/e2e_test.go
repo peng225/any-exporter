@@ -13,12 +13,21 @@ import (
 
 func TestBasicScenario(t *testing.T) {
 	baseURL := "http://localhost:8080"
+
+	// post metrics recipe
 	f, err := os.Open("recipe.yaml")
 	require.NoError(t, err)
-
 	resp, err := http.Post(baseURL+"/recipe", "application/yaml", f)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	f.Close()
+
+	// conflict recipe post
+	f, err = os.Open("recipe.yaml")
+	require.NoError(t, err)
+	resp, err = http.Post(baseURL+"/recipe", "application/yaml", f)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusConflict, resp.StatusCode)
 	f.Close()
 
 	// get metrics 1

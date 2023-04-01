@@ -2,6 +2,7 @@ package exporter
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -23,7 +24,11 @@ const (
 	Histogram
 )
 
-var strToMetricsType map[string]metricsType
+var (
+	strToMetricsType map[string]metricsType
+
+	ConflictErr = errors.New("metrics conflict")
+)
 
 type metricsRecipe struct {
 	Spec spec          `yaml:"spec"`
@@ -169,6 +174,18 @@ func unmarshalAllRecipe(in []byte, out *[]metricsRecipe) error {
 	return nil
 }
 
+func conflict(recipe []metricsRecipe) (bool, int) {
+	for i, r := range recipe {
+		if _, ok := counterExporters[r.Spec.Name]; ok {
+			return true, i
+		}
+		if _, ok := gaugeExporters[r.Spec.Name]; ok {
+			return true, i
+		}
+	}
+	return false, -1
+}
+
 func Register(yamlData []byte) error {
 	mu.Lock()
 	defer mu.Unlock()
@@ -177,6 +194,10 @@ func Register(yamlData []byte) error {
 	err := unmarshalAllRecipe(yamlData, &recipe)
 	if err != nil {
 		return err
+	}
+
+	if result, i := conflict(recipe); result {
+		return fmt.Errorf("%s: %w", recipe[i].Spec.Name, ConflictErr)
 	}
 
 	for _, r := range recipe {

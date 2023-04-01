@@ -37,7 +37,11 @@ func RecipePostHandler(w http.ResponseWriter, r *http.Request) {
 	err = exporter.Register(body)
 	if err != nil {
 		log.Println(err)
-		w.WriteHeader(http.StatusBadRequest)
+		if err == exporter.ConflictErr {
+			w.WriteHeader(http.StatusConflict)
+		} else {
+			w.WriteHeader(http.StatusBadRequest)
+		}
 		return
 	}
 
