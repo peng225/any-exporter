@@ -186,6 +186,15 @@ func conflict(recipe []metricsRecipe) (bool, int) {
 	return false, -1
 }
 
+func includeInvalidType(recipe []metricsRecipe) (bool, int) {
+	for i, r := range recipe {
+		if _, ok := strToMetricsType[r.Spec.Type]; !ok {
+			return true, i
+		}
+	}
+	return false, -1
+}
+
 func Register(yamlData []byte) error {
 	mu.Lock()
 	defer mu.Unlock()
@@ -200,11 +209,12 @@ func Register(yamlData []byte) error {
 		return fmt.Errorf("%s: %w", recipe[i].Spec.Name, ConflictErr)
 	}
 
-	for _, r := range recipe {
-		if _, ok := strToMetricsType[r.Spec.Type]; !ok {
-			return fmt.Errorf("invalid metrics type %s specified for %s", r.Spec.Type, r.Spec.Name)
-		}
+	if result, i := includeInvalidType(recipe); result {
+		return fmt.Errorf("invalid metrics type %s specified for %s",
+			recipe[i].Spec.Type, recipe[i].Spec.Name)
+	}
 
+	for _, r := range recipe {
 		switch strToMetricsType[r.Spec.Type] {
 		case Counter:
 			if _, ok := counterExporters[r.Spec.Name]; ok {

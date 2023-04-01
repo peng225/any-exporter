@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -37,7 +38,7 @@ func RecipePostHandler(w http.ResponseWriter, r *http.Request) {
 	err = exporter.Register(body)
 	if err != nil {
 		log.Println(err)
-		if err == exporter.ConflictErr {
+		if errors.Is(err, exporter.ConflictErr) {
 			w.WriteHeader(http.StatusConflict)
 		} else {
 			w.WriteHeader(http.StatusBadRequest)
