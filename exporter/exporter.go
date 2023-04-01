@@ -2,6 +2,7 @@ package exporter
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -23,7 +24,11 @@ const (
 	Histogram
 )
 
-var strToMetricsType map[string]metricsType
+var (
+	strToMetricsType map[string]metricsType
+
+	ConflictErr = errors.New("metrics conflict")
+)
 
 type metricsRecipe struct {
 	Spec spec          `yaml:"spec"`
@@ -169,6 +174,27 @@ func unmarshalAllRecipe(in []byte, out *[]metricsRecipe) error {
 	return nil
 }
 
+func conflict(recipe []metricsRecipe) (bool, int) {
+	for i, r := range recipe {
+		if _, ok := counterExporters[r.Spec.Name]; ok {
+			return true, i
+		}
+		if _, ok := gaugeExporters[r.Spec.Name]; ok {
+			return true, i
+		}
+	}
+	return false, -1
+}
+
+func includeInvalidType(recipe []metricsRecipe) (bool, int) {
+	for i, r := range recipe {
+		if _, ok := strToMetricsType[r.Spec.Type]; !ok {
+			return true, i
+		}
+	}
+	return false, -1
+}
+
 func Register(yamlData []byte) error {
 	mu.Lock()
 	defer mu.Unlock()
@@ -179,11 +205,16 @@ func Register(yamlData []byte) error {
 		return err
 	}
 
-	for _, r := range recipe {
-		if _, ok := strToMetricsType[r.Spec.Type]; !ok {
-			return fmt.Errorf("invalid metrics type %s specified for %s", r.Spec.Type, r.Spec.Name)
-		}
+	if result, i := conflict(recipe); result {
+		return fmt.Errorf("%s: %w", recipe[i].Spec.Name, ConflictErr)
+	}
 
+	if result, i := includeInvalidType(recipe); result {
+		return fmt.Errorf("invalid metrics type %s specified for %s",
+			recipe[i].Spec.Type, recipe[i].Spec.Name)
+	}
+
+	for _, r := range recipe {
 		switch strToMetricsType[r.Spec.Type] {
 		case Counter:
 			if _, ok := counterExporters[r.Spec.Name]; ok {
