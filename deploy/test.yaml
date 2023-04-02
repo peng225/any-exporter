@@ -1,0 +1,58 @@
+spec:
+  name: test1
+  type: gauge
+  labels:
+  - aaa
+  - bbb
+data:
+- labels:
+  - key: aaa
+    value: "hoge1"
+  - key: bbb
+    value: "fuga1"
+  sequence: '3x100'
+- labels:
+  - key: aaa
+    value: "hoge1"
+  - key: bbb
+    value: "fuga2"
+  sequence: '6x100'
+- labels:
+  - key: aaa
+    value: "hoge1"
+  - key: bbb
+    value: "fuga3"
+  sequence: '8x100'
+- labels:
+  - key: aaa
+    value: "hoge2"
+  - key: bbb
+    value: "fuga1"
+  sequence: '10x100'
+- labels:
+  - key: aaa
+    value: "hoge2"
+  - key: bbb
+    value: "fuga2"
+  sequence: '12x100'
+- labels:
+  - key: aaa
+    value: "hoge2"
+  - key: bbb
+    value: "fuga3"
+  sequence: '14x100'
+---
+spec:
+  name: test2
+  type: gauge
+  labels:
+  - bbb
+data:
+- labels:
+  - key: bbb
+    value: "fuga1"
+  sequence: '1x100'
+- labels:
+  - key: bbb
+    value: "fuga4"
+  sequence: '1x100'

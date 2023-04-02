@@ -1,0 +1,11 @@
+prometheus:
+  prometheusSpec:
+    serviceMonitorNamespaceSelector:
+      matchExpressions:
+      - key: kubernetes.io/metadata.name
+        operator: In
+        values:   
+          - any-exporter
+    serviceMonitorSelector:
+      matchLabels:
+        app.kubernetes.io/name: any-exporter
