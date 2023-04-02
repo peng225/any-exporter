@@ -26,7 +26,7 @@ setup-by-helm: $(KIND) $(HELM)
 	docker build -t $(IMAGE_NAME):$(IMAGE_TAG) ..
 	$(KIND) load docker-image $(IMAGE_NAME):$(IMAGE_TAG)
 	$(HELM) install --namespace any-exporter --set image.tag=$(IMAGE_TAG) any-exporter ../charts/any-exporter
-	sleep 10
+	sleep 5
 	kubectl wait pods -n any-exporter -l app.kubernetes.io/name=any-exporter --for condition=Ready --timeout=30s
 	kubectl get all -n any-exporter
 	kubectl port-forward -n any-exporter service/any-exporter 8080:8080 &
@@ -43,6 +43,15 @@ $(HELM): | bin
 
 bin:
 	mkdir $@
+
+.PHONY: start-env
+start-env: setup-by-helm
+	kubectl create ns monitoring
+	$(HELM) repo add prometheus-community https://prometheus-community.github.io/helm-charts
+	$(HELM) install kube-prom-stack prometheus-community/kube-prometheus-stack --namespace monitoring -f ../deploy/prom-values.yaml
+	kubectl wait deploy -n monitoring kube-prom-stack-grafana --for condition=Available --timeout=120s
+	kubectl apply -f ../deploy/svcmon.yaml
+	kubectl port-forward -n monitoring service/kube-prom-stack-grafana 8081:80 &
 
 .PHONY: clean
 clean: $(KIND)

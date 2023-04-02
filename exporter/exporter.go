@@ -308,7 +308,7 @@ func Register(yamlData []byte) error {
 				parsedMetricsData: pmds,
 			}
 		default:
-			panic(fmt.Sprintf("unknown type: %d", types[r.Spec.Type]))
+			panic(fmt.Sprintf("unknown type: %d", types[r.Spec.Name]))
 		}
 		types[r.Spec.Name] = strToMetricsType[r.Spec.Type]
 	}
@@ -368,6 +368,8 @@ func Clear(force bool) {
 	mu.Lock()
 	defer mu.Unlock()
 
+	log.Printf("param: force=%v", force)
+
 	toBeDeletedMetrics := make([]string, 0)
 	for metName, exporter := range counterExporters {
 		shouldBeRemoved := true
@@ -414,6 +416,8 @@ func clearSpecifiedMetrics(metricsName string) {
 			log.Printf("unregister failed. metricsName = %s", metricsName)
 		}
 		delete(gaugeExporters, metricsName)
+	default:
+		panic(fmt.Sprintf("unknown type: %d", types[metricsName]))
 	}
 	delete(types, metricsName)
 

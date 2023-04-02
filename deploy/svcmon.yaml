@@ -1,0 +1,17 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: any-exporter
+  namespace: any-exporter
+  labels:
+    app.kubernetes.io/name: any-exporter
+spec:
+  endpoints:
+  - path: /metrics
+    port: http
+  namespaceSelector:
+    matchNames:
+    - any-exporter
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: any-exporter
