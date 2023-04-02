@@ -195,6 +195,19 @@ func includeInvalidType(recipe []metricsRecipe) (bool, int) {
 	return false, -1
 }
 
+func invalidDataLabel(specLabel []string, dataLabel map[string]string) bool {
+	if len(specLabel) != len(dataLabel) {
+		return true
+	}
+
+	for _, sl := range specLabel {
+		if _, ok := dataLabel[sl]; !ok {
+			return true
+		}
+	}
+	return false
+}
+
 func Register(yamlData []byte) error {
 	mu.Lock()
 	defer mu.Unlock()
@@ -239,6 +252,9 @@ func Register(yamlData []byte) error {
 				for _, l := range metData.Labels {
 					labels[l.Key] = l.Value
 				}
+				if invalidDataLabel(r.Spec.Labels, labels) {
+					return fmt.Errorf("data label is invalid: %v", labels)
+				}
 
 				pmds = append(pmds, &parsedMetricsData{
 					labels:   labels,
@@ -271,6 +287,9 @@ func Register(yamlData []byte) error {
 				labels := make(map[string]string)
 				for _, l := range metData.Labels {
 					labels[l.Key] = l.Value
+				}
+				if invalidDataLabel(r.Spec.Labels, labels) {
+					return fmt.Errorf("data label is invalid: %v", labels)
 				}
 
 				pmds = append(pmds, &parsedMetricsData{

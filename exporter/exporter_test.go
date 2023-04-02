@@ -102,3 +102,53 @@ func TestParseSequence(t *testing.T) {
 		})
 	}
 }
+
+func TestDnvalidDataLabel(t *testing.T) {
+	specLabel := []string{"aaa", "bbb"}
+
+	cases := []struct {
+		desc           string
+		dataLabel      map[string]string
+		expectedResult bool
+	}{
+		{
+			desc: "success",
+			dataLabel: map[string]string{
+				"aaa": "foo",
+				"bbb": "var",
+			},
+			expectedResult: false,
+		},
+		{
+			desc: "lack of label",
+			dataLabel: map[string]string{
+				"aaa": "foo",
+			},
+			expectedResult: true,
+		},
+		{
+			desc: "extra label",
+			dataLabel: map[string]string{
+				"aaa": "foo",
+				"bbb": "var",
+				"ccc": "baz",
+			},
+			expectedResult: true,
+		},
+		{
+			desc: "wrong label",
+			dataLabel: map[string]string{
+				"aaa":  "foo",
+				"bbbb": "var",
+			},
+			expectedResult: true,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.desc, func(t *testing.T) {
+			result := invalidDataLabel(specLabel, tt.dataLabel)
+			assert.Equal(t, tt.expectedResult, result)
+		})
+	}
+}
