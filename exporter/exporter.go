@@ -53,7 +53,7 @@ type label struct {
 
 type parsedMetricsData struct {
 	labels   map[string]string
-	sequence []int
+	sequence []float64
 }
 
 type counterExporter struct {
@@ -84,8 +84,8 @@ func init() {
 	gaugeExporters = make(map[string]*gaugeExporter)
 }
 
-func parseSequence(sequence string) ([]int, error) {
-	result := make([]int, 0)
+func parseSequence(sequence string) ([]float64, error) {
+	result := make([]float64, 0)
 
 	tokens := strings.Split(sequence, " ")
 	for _, token := range tokens {
@@ -127,11 +127,11 @@ func parseSequence(sequence string) ([]int, error) {
 				return nil, fmt.Errorf("invalid values format %s", sequence)
 			}
 
-			init, err := strconv.Atoi(initStr)
+			init, err := strconv.ParseFloat(initStr, 64)
 			if err != nil {
 				return nil, err
 			}
-			step, err := strconv.Atoi(stepStr)
+			step, err := strconv.ParseFloat(stepStr, 64)
 			if err != nil {
 				return nil, err
 			}
@@ -147,7 +147,7 @@ func parseSequence(sequence string) ([]int, error) {
 			}
 		} else {
 			// Just a single number
-			val, err := strconv.Atoi(token)
+			val, err := strconv.ParseFloat(token, 64)
 			if err != nil {
 				return nil, err
 			}
