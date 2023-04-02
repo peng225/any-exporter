@@ -186,13 +186,32 @@ func conflict(recipe []metricsRecipe) (bool, int) {
 	return false, -1
 }
 
-func includeInvalidType(recipe []metricsRecipe) (bool, int) {
+func invalidSpec(recipe []metricsRecipe) (bool, int) {
 	for i, r := range recipe {
+		if r.Spec.Name == "" {
+			return true, i
+		}
 		if _, ok := strToMetricsType[r.Spec.Type]; !ok {
+			return true, i
+		}
+		if len(r.Spec.Labels) == 0 {
 			return true, i
 		}
 	}
 	return false, -1
+}
+
+func invalidDataLabel(specLabel []string, dataLabel map[string]string) bool {
+	if len(specLabel) != len(dataLabel) {
+		return true
+	}
+
+	for _, sl := range specLabel {
+		if _, ok := dataLabel[sl]; !ok {
+			return true
+		}
+	}
+	return false
 }
 
 func Register(yamlData []byte) error {
@@ -209,9 +228,9 @@ func Register(yamlData []byte) error {
 		return fmt.Errorf("%s: %w", recipe[i].Spec.Name, ConflictErr)
 	}
 
-	if result, i := includeInvalidType(recipe); result {
-		return fmt.Errorf("invalid metrics type %s specified for %s",
-			recipe[i].Spec.Type, recipe[i].Spec.Name)
+	if result, i := invalidSpec(recipe); result {
+		return fmt.Errorf("invalid metrics spec. name: %s, type: %s, labels: %v",
+			recipe[i].Spec.Name, recipe[i].Spec.Type, recipe[i].Spec.Labels)
 	}
 
 	for _, r := range recipe {
@@ -238,6 +257,9 @@ func Register(yamlData []byte) error {
 				labels := make(map[string]string)
 				for _, l := range metData.Labels {
 					labels[l.Key] = l.Value
+				}
+				if invalidDataLabel(r.Spec.Labels, labels) {
+					return fmt.Errorf("data label is invalid: %v", labels)
 				}
 
 				pmds = append(pmds, &parsedMetricsData{
@@ -271,6 +293,9 @@ func Register(yamlData []byte) error {
 				labels := make(map[string]string)
 				for _, l := range metData.Labels {
 					labels[l.Key] = l.Value
+				}
+				if invalidDataLabel(r.Spec.Labels, labels) {
+					return fmt.Errorf("data label is invalid: %v", labels)
 				}
 
 				pmds = append(pmds, &parsedMetricsData{
