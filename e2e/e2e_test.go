@@ -101,4 +101,22 @@ func TestBasicScenario(t *testing.T) {
 	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val1"} 6`))
 	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val2"} 4`))
 	assert.False(t, strings.Contains(metrics, "test2"))
+
+	// force delete recipe
+	req, err = http.NewRequest(http.MethodDelete, baseURL+"/recipe", nil)
+	require.NoError(t, err)
+	q := req.URL.Query()
+	q.Add("force", "true")
+	req.URL.RawQuery = q.Encode()
+	resp, err = http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	// post again
+	f, err = os.Open("recipe.yaml")
+	require.NoError(t, err)
+	resp, err = http.Post(baseURL+"/recipe", "application/yaml", f)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	f.Close()
 }

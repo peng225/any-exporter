@@ -16,7 +16,7 @@ data:
     value: aaa_val1
   - key: bbb
     value: bbb_val2
-  sequence: '0 1 1+0x3'
+  sequence: '0 1 1+0x4'
 ---
 spec:
   name: test2
