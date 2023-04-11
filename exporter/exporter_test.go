@@ -115,7 +115,7 @@ func TestParseSequence(t *testing.T) {
 	}
 }
 
-func TestDnvalidDataLabel(t *testing.T) {
+func TestInvalidDataLabel(t *testing.T) {
 	specLabel := []string{"aaa", "bbb"}
 
 	cases := []struct {
@@ -160,6 +160,37 @@ func TestDnvalidDataLabel(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.desc, func(t *testing.T) {
 			result := invalidDataLabel(specLabel, tt.dataLabel)
+			assert.Equal(t, tt.expectedResult, result)
+		})
+	}
+}
+
+func TestAscending(t *testing.T) {
+	cases := []struct {
+		desc           string
+		sequence       []float64
+		expectedResult bool
+	}{
+		{
+			desc:           "ascending order",
+			sequence:       []float64{0, 2, 2, 5},
+			expectedResult: true,
+		},
+		{
+			desc:           "single value",
+			sequence:       []float64{0},
+			expectedResult: true,
+		},
+		{
+			desc:           "descending order",
+			sequence:       []float64{2, 3, 5, 4, 7},
+			expectedResult: false,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.desc, func(t *testing.T) {
+			result := ascending(tt.sequence)
 			assert.Equal(t, tt.expectedResult, result)
 		})
 	}
