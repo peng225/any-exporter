@@ -115,7 +115,7 @@ func TestParseSequence(t *testing.T) {
 	}
 }
 
-func TestDnvalidDataLabel(t *testing.T) {
+func TestInvalidDataLabel(t *testing.T) {
 	specLabel := []string{"aaa", "bbb"}
 
 	cases := []struct {
