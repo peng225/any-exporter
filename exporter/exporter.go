@@ -54,6 +54,7 @@ type label struct {
 type parsedMetricsData struct {
 	labels   map[string]string
 	sequence []float64
+	prevData float64
 }
 
 type counterExporter struct {
@@ -61,9 +62,42 @@ type counterExporter struct {
 	parsedMetricsData []*parsedMetricsData
 }
 
+func (ce *counterExporter) update(metName string) {
+	if len(ce.parsedMetricsData) == 0 {
+		return
+	}
+	toBeDeletedDataIndex := make([]int, 0)
+	for i, pmd := range ce.parsedMetricsData {
+		ce.counterVec.With(pmd.labels).Add(float64(pmd.sequence[0]) - pmd.prevData)
+		pmd.prevData = pmd.sequence[0]
+		pmd.sequence = pmd.sequence[1:]
+		if len(pmd.sequence) == 0 {
+			log.Printf("empty value found for %s.", metName)
+			toBeDeletedDataIndex = append(toBeDeletedDataIndex, i)
+		}
+	}
+	ce.parsedMetricsData = deleteEntriesFromParsedMetricsData(toBeDeletedDataIndex, ce.parsedMetricsData)
+}
+
 type gaugeExporter struct {
 	gaugeVec          *prometheus.GaugeVec
 	parsedMetricsData []*parsedMetricsData
+}
+
+func (ga *gaugeExporter) update(metName string) {
+	if len(ga.parsedMetricsData) == 0 {
+		return
+	}
+	toBeDeletedDataIndex := make([]int, 0)
+	for i, pmd := range ga.parsedMetricsData {
+		ga.gaugeVec.With(pmd.labels).Set(float64(pmd.sequence[0]))
+		pmd.sequence = pmd.sequence[1:]
+		if len(pmd.sequence) == 0 {
+			log.Printf("empty value found for %s.", metName)
+			toBeDeletedDataIndex = append(toBeDeletedDataIndex, i)
+		}
+	}
+	ga.parsedMetricsData = deleteEntriesFromParsedMetricsData(toBeDeletedDataIndex, ga.parsedMetricsData)
 }
 
 var types map[string]metricsType
@@ -214,6 +248,17 @@ func invalidDataLabel(specLabel []string, dataLabel map[string]string) bool {
 	return false
 }
 
+func ascending(sequence []float64) bool {
+	prev := float64(0)
+	for i, val := range sequence {
+		if i != 0 && prev > val {
+			return false
+		}
+		prev = val
+	}
+	return true
+}
+
 func Register(yamlData []byte) error {
 	mu.Lock()
 	defer mu.Unlock()
@@ -252,6 +297,10 @@ func Register(yamlData []byte) error {
 				parsedSeq, err := parseSequence(metData.Sequence)
 				if err != nil {
 					return err
+				}
+
+				if !ascending(parsedSeq) {
+					return fmt.Errorf("sequence must be in the ascending order.")
 				}
 
 				labels := make(map[string]string)
@@ -332,35 +381,11 @@ func Update() {
 	defer mu.Unlock()
 
 	for metName, exporter := range counterExporters {
-		if len(exporter.parsedMetricsData) == 0 {
-			continue
-		}
-		toBeDeletedDataIndex := make([]int, 0)
-		for i, pmd := range exporter.parsedMetricsData {
-			exporter.counterVec.With(pmd.labels).Add(float64(pmd.sequence[0]))
-			pmd.sequence = pmd.sequence[1:]
-			if len(pmd.sequence) == 0 {
-				log.Printf("empty value found for %s.", metName)
-				toBeDeletedDataIndex = append(toBeDeletedDataIndex, i)
-			}
-		}
-		exporter.parsedMetricsData = deleteEntriesFromParsedMetricsData(toBeDeletedDataIndex, exporter.parsedMetricsData)
+		exporter.update(metName)
 	}
 
 	for metName, exporter := range gaugeExporters {
-		if len(exporter.parsedMetricsData) == 0 {
-			continue
-		}
-		toBeDeletedDataIndex := make([]int, 0)
-		for i, pmd := range exporter.parsedMetricsData {
-			exporter.gaugeVec.With(pmd.labels).Set(float64(pmd.sequence[0]))
-			pmd.sequence = pmd.sequence[1:]
-			if len(pmd.sequence) == 0 {
-				log.Printf("empty value found for %s.", metName)
-				toBeDeletedDataIndex = append(toBeDeletedDataIndex, i)
-			}
-		}
-		exporter.parsedMetricsData = deleteEntriesFromParsedMetricsData(toBeDeletedDataIndex, exporter.parsedMetricsData)
+		exporter.update(metName)
 	}
 }
 
