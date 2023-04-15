@@ -62,6 +62,45 @@ type counterExporter struct {
 	parsedMetricsData []*parsedMetricsData
 }
 
+func newCounterExporter(recipe *metricsRecipe) (*counterExporter, error) {
+	counterVec := promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: recipe.Spec.Name,
+		},
+		recipe.Spec.Labels,
+	)
+
+	var pmds []*parsedMetricsData
+	for _, metData := range recipe.Data {
+		parsedSeq, err := parseSequence(metData.Sequence)
+		if err != nil {
+			return nil, err
+		}
+
+		if !ascending(parsedSeq) {
+			return nil, fmt.Errorf("sequence must be in the ascending order.")
+		}
+
+		labels := make(map[string]string)
+		for _, l := range metData.Labels {
+			labels[l.Key] = l.Value
+		}
+		if invalidDataLabel(recipe.Spec.Labels, labels) {
+			return nil, fmt.Errorf("data label is invalid: %v", labels)
+		}
+
+		pmds = append(pmds, &parsedMetricsData{
+			labels:   labels,
+			sequence: parsedSeq,
+		})
+	}
+
+	return &counterExporter{
+		counterVec:        counterVec,
+		parsedMetricsData: pmds,
+	}, nil
+}
+
 func (ce *counterExporter) update(metName string) {
 	if len(ce.parsedMetricsData) == 0 {
 		return
@@ -82,6 +121,41 @@ func (ce *counterExporter) update(metName string) {
 type gaugeExporter struct {
 	gaugeVec          *prometheus.GaugeVec
 	parsedMetricsData []*parsedMetricsData
+}
+
+func newGaugeExporter(recipe *metricsRecipe) (*gaugeExporter, error) {
+	gaugeVec := promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: recipe.Spec.Name,
+		},
+		recipe.Spec.Labels,
+	)
+
+	var pmds []*parsedMetricsData
+	for _, metData := range recipe.Data {
+		parsedSeq, err := parseSequence(metData.Sequence)
+		if err != nil {
+			return nil, err
+		}
+
+		labels := make(map[string]string)
+		for _, l := range metData.Labels {
+			labels[l.Key] = l.Value
+		}
+		if invalidDataLabel(recipe.Spec.Labels, labels) {
+			return nil, fmt.Errorf("data label is invalid: %v", labels)
+		}
+
+		pmds = append(pmds, &parsedMetricsData{
+			labels:   labels,
+			sequence: parsedSeq,
+		})
+	}
+
+	return &gaugeExporter{
+		gaugeVec:          gaugeVec,
+		parsedMetricsData: pmds,
+	}, nil
 }
 
 func (ga *gaugeExporter) update(metName string) {
@@ -285,76 +359,18 @@ func Register(yamlData []byte) error {
 				clearSpecifiedMetrics(r.Spec.Name)
 			}
 
-			counterVec := promauto.NewCounterVec(
-				prometheus.CounterOpts{
-					Name: r.Spec.Name,
-				},
-				r.Spec.Labels,
-			)
-
-			var pmds []*parsedMetricsData
-			for _, metData := range r.Data {
-				parsedSeq, err := parseSequence(metData.Sequence)
-				if err != nil {
-					return err
-				}
-
-				if !ascending(parsedSeq) {
-					return fmt.Errorf("sequence must be in the ascending order.")
-				}
-
-				labels := make(map[string]string)
-				for _, l := range metData.Labels {
-					labels[l.Key] = l.Value
-				}
-				if invalidDataLabel(r.Spec.Labels, labels) {
-					return fmt.Errorf("data label is invalid: %v", labels)
-				}
-
-				pmds = append(pmds, &parsedMetricsData{
-					labels:   labels,
-					sequence: parsedSeq,
-				})
-			}
-			counterExporters[r.Spec.Name] = &counterExporter{
-				counterVec:        counterVec,
-				parsedMetricsData: pmds,
+			counterExporters[r.Spec.Name], err = newCounterExporter(&r)
+			if err != nil {
+				return err
 			}
 		case Gauge:
 			if _, ok := gaugeExporters[r.Spec.Name]; ok {
 				clearSpecifiedMetrics(r.Spec.Name)
 			}
 
-			gaugeVec := promauto.NewGaugeVec(
-				prometheus.GaugeOpts{
-					Name: r.Spec.Name,
-				},
-				r.Spec.Labels,
-			)
-
-			var pmds []*parsedMetricsData
-			for _, metData := range r.Data {
-				parsedSeq, err := parseSequence(metData.Sequence)
-				if err != nil {
-					return err
-				}
-
-				labels := make(map[string]string)
-				for _, l := range metData.Labels {
-					labels[l.Key] = l.Value
-				}
-				if invalidDataLabel(r.Spec.Labels, labels) {
-					return fmt.Errorf("data label is invalid: %v", labels)
-				}
-
-				pmds = append(pmds, &parsedMetricsData{
-					labels:   labels,
-					sequence: parsedSeq,
-				})
-			}
-			gaugeExporters[r.Spec.Name] = &gaugeExporter{
-				gaugeVec:          gaugeVec,
-				parsedMetricsData: pmds,
+			gaugeExporters[r.Spec.Name], err = newGaugeExporter(&r)
+			if err != nil {
+				return err
 			}
 		default:
 			panic(fmt.Sprintf("unknown type: %d", types[r.Spec.Name]))
