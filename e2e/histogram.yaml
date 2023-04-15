@@ -17,4 +17,4 @@ data:
     value: ccc_val2
   - key: ddd
     value: ddd_val2
-  sequence: '0+3x9'
+  sequence: '0+3x2'

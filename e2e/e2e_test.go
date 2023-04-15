@@ -18,15 +18,7 @@ const (
 func cleanUp(t *testing.T) {
 	t.Helper()
 
-	// force delete recipe
-	req, err := http.NewRequest(http.MethodDelete, baseURL+"/recipe", nil)
-	require.NoError(t, err)
-	q := req.URL.Query()
-	q.Add("force", "true")
-	req.URL.RawQuery = q.Encode()
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	deleteMetrics(t, true)
 }
 
 func getMetrics(t *testing.T) string {
@@ -52,6 +44,21 @@ func postMetrics(t *testing.T, recipeFileName string, expectedStatus int) {
 	resp, err := http.Post(baseURL+"/recipe", "application/yaml", f)
 	require.NoError(t, err)
 	require.Equal(t, expectedStatus, resp.StatusCode)
+}
+
+func deleteMetrics(t *testing.T, force bool) {
+	t.Helper()
+
+	req, err := http.NewRequest(http.MethodDelete, baseURL+"/recipe", nil)
+	require.NoError(t, err)
+	if force {
+		q := req.URL.Query()
+		q.Add("force", "true")
+		req.URL.RawQuery = q.Encode()
+	}
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 func TestCounterAndGauge(t *testing.T) {
@@ -86,11 +93,7 @@ func TestCounterAndGauge(t *testing.T) {
 	assert.True(t, strings.Contains(metrics, `test2{aaa="aaa_val2",ccc="ccc_val1"} 0`))
 
 	// delete recipe
-	req, err := http.NewRequest(http.MethodDelete, baseURL+"/recipe", nil)
-	require.NoError(t, err)
-	resp, err := http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	deleteMetrics(t, false)
 
 	// get metrics 5 (test2 should already be deleted)
 	metrics = getMetrics(t)
@@ -99,14 +102,7 @@ func TestCounterAndGauge(t *testing.T) {
 	assert.False(t, strings.Contains(metrics, "test2"))
 
 	// force delete recipe
-	req, err = http.NewRequest(http.MethodDelete, baseURL+"/recipe", nil)
-	require.NoError(t, err)
-	q := req.URL.Query()
-	q.Add("force", "true")
-	req.URL.RawQuery = q.Encode()
-	resp, err = http.DefaultClient.Do(req)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode)
+	deleteMetrics(t, true)
 
 	// post again
 	postMetrics(t, "counter-and-gauge.yaml", http.StatusOK)
@@ -134,12 +130,19 @@ func TestHistogram(t *testing.T) {
 	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val2",ddd="ddd_val2",le="2"} 1`), metrics)
 	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val2",ddd="ddd_val2",le="4"} 2`), metrics)
 
-	// get metrics 3
+	// get metrics 3 (the value of test3_bucket will be drained)
 	metrics = getMetrics(t)
 	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val1",ddd="ddd_val1",le="32"} 2`), metrics)
 	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val1",ddd="ddd_val1",le="+Inf"} 3`), metrics)
 	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val2",ddd="ddd_val2",le="4"} 2`), metrics)
 	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val2",ddd="ddd_val2",le="8"} 3`), metrics)
+
+	// delete recipe
+	deleteMetrics(t, false)
+
+	// get metrics 4
+	metrics = getMetrics(t)
+	assert.False(t, strings.Contains(metrics, `test3_bucket`), metrics)
 
 	cleanUp(t)
 }
