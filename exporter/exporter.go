@@ -36,9 +36,10 @@ type metricsRecipe struct {
 }
 
 type spec struct {
-	Name   string   `yaml:"name"`
-	Type   string   `yaml:"type"`
-	Labels []string `yaml:"labels"`
+	Name    string    `yaml:"name"`
+	Type    string    `yaml:"type"`
+	Labels  []string  `yaml:"labels"`
+	Buckets []float64 `yaml:"buckets"`
 }
 
 type metricsData struct {
@@ -60,6 +61,45 @@ type parsedMetricsData struct {
 type counterExporter struct {
 	counterVec        *prometheus.CounterVec
 	parsedMetricsData []*parsedMetricsData
+}
+
+func newCounterExporter(recipe *metricsRecipe) (*counterExporter, error) {
+	counterVec := promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: recipe.Spec.Name,
+		},
+		recipe.Spec.Labels,
+	)
+
+	var pmds []*parsedMetricsData
+	for _, metData := range recipe.Data {
+		parsedSeq, err := parseSequence(metData.Sequence)
+		if err != nil {
+			return nil, err
+		}
+
+		if !ascending(parsedSeq) {
+			return nil, fmt.Errorf("sequence must be in the ascending order.")
+		}
+
+		labels := make(map[string]string)
+		for _, l := range metData.Labels {
+			labels[l.Key] = l.Value
+		}
+		if invalidDataLabel(recipe.Spec.Labels, labels) {
+			return nil, fmt.Errorf("data label is invalid: %v", labels)
+		}
+
+		pmds = append(pmds, &parsedMetricsData{
+			labels:   labels,
+			sequence: parsedSeq,
+		})
+	}
+
+	return &counterExporter{
+		counterVec:        counterVec,
+		parsedMetricsData: pmds,
+	}, nil
 }
 
 func (ce *counterExporter) update(metName string) {
@@ -84,6 +124,41 @@ type gaugeExporter struct {
 	parsedMetricsData []*parsedMetricsData
 }
 
+func newGaugeExporter(recipe *metricsRecipe) (*gaugeExporter, error) {
+	gaugeVec := promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: recipe.Spec.Name,
+		},
+		recipe.Spec.Labels,
+	)
+
+	var pmds []*parsedMetricsData
+	for _, metData := range recipe.Data {
+		parsedSeq, err := parseSequence(metData.Sequence)
+		if err != nil {
+			return nil, err
+		}
+
+		labels := make(map[string]string)
+		for _, l := range metData.Labels {
+			labels[l.Key] = l.Value
+		}
+		if invalidDataLabel(recipe.Spec.Labels, labels) {
+			return nil, fmt.Errorf("data label is invalid: %v", labels)
+		}
+
+		pmds = append(pmds, &parsedMetricsData{
+			labels:   labels,
+			sequence: parsedSeq,
+		})
+	}
+
+	return &gaugeExporter{
+		gaugeVec:          gaugeVec,
+		parsedMetricsData: pmds,
+	}, nil
+}
+
 func (ga *gaugeExporter) update(metName string) {
 	if len(ga.parsedMetricsData) == 0 {
 		return
@@ -100,10 +175,68 @@ func (ga *gaugeExporter) update(metName string) {
 	ga.parsedMetricsData = deleteEntriesFromParsedMetricsData(toBeDeletedDataIndex, ga.parsedMetricsData)
 }
 
+type histogramExporter struct {
+	histogramVec      *prometheus.HistogramVec
+	parsedMetricsData []*parsedMetricsData
+}
+
+func newHistogramExporter(recipe *metricsRecipe) (*histogramExporter, error) {
+	histogramVec := promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    recipe.Spec.Name,
+			Buckets: recipe.Spec.Buckets,
+		},
+		recipe.Spec.Labels,
+	)
+
+	var pmds []*parsedMetricsData
+	for _, metData := range recipe.Data {
+		parsedSeq, err := parseSequence(metData.Sequence)
+		if err != nil {
+			return nil, err
+		}
+
+		labels := make(map[string]string)
+		for _, l := range metData.Labels {
+			labels[l.Key] = l.Value
+		}
+		if invalidDataLabel(recipe.Spec.Labels, labels) {
+			return nil, fmt.Errorf("data label is invalid: %v", labels)
+		}
+
+		pmds = append(pmds, &parsedMetricsData{
+			labels:   labels,
+			sequence: parsedSeq,
+		})
+	}
+
+	return &histogramExporter{
+		histogramVec:      histogramVec,
+		parsedMetricsData: pmds,
+	}, nil
+}
+
+func (hi *histogramExporter) update(metName string) {
+	if len(hi.parsedMetricsData) == 0 {
+		return
+	}
+	toBeDeletedDataIndex := make([]int, 0)
+	for i, pmd := range hi.parsedMetricsData {
+		hi.histogramVec.With(pmd.labels).Observe(float64(pmd.sequence[0]))
+		pmd.sequence = pmd.sequence[1:]
+		if len(pmd.sequence) == 0 {
+			log.Printf("empty value found for %s.", metName)
+			toBeDeletedDataIndex = append(toBeDeletedDataIndex, i)
+		}
+	}
+	hi.parsedMetricsData = deleteEntriesFromParsedMetricsData(toBeDeletedDataIndex, hi.parsedMetricsData)
+}
+
 var types map[string]metricsType
 
 var counterExporters map[string]*counterExporter
 var gaugeExporters map[string]*gaugeExporter
+var histogramExporters map[string]*histogramExporter
 
 var mu sync.Mutex
 
@@ -111,11 +244,13 @@ func init() {
 	strToMetricsType = make(map[string]metricsType)
 	strToMetricsType["counter"] = Counter
 	strToMetricsType["gauge"] = Gauge
+	strToMetricsType["histogram"] = Histogram
 
 	types = make(map[string]metricsType)
 
 	counterExporters = make(map[string]*counterExporter)
 	gaugeExporters = make(map[string]*gaugeExporter)
+	histogramExporters = make(map[string]*histogramExporter)
 }
 
 func parseSequence(sequence string) ([]float64, error) {
@@ -216,23 +351,45 @@ func conflict(recipe []metricsRecipe) (bool, int) {
 		if _, ok := gaugeExporters[r.Spec.Name]; ok {
 			return true, i
 		}
+		if _, ok := histogramExporters[r.Spec.Name]; ok {
+			return true, i
+		}
 	}
 	return false, -1
 }
 
-func invalidSpec(recipe []metricsRecipe) (bool, int) {
+func validBuckets(buckets []float64) bool {
+	prev := -1.0
+	for _, b := range buckets {
+		if b <= 0 {
+			return false
+		}
+		if b <= prev {
+			return false
+		}
+		prev = b
+	}
+	return true
+}
+
+func validSpec(recipe []metricsRecipe) (bool, int) {
 	for i, r := range recipe {
 		if r.Spec.Name == "" {
-			return true, i
+			return false, i
 		}
 		if _, ok := strToMetricsType[r.Spec.Type]; !ok {
-			return true, i
+			return false, i
 		}
 		if len(r.Spec.Labels) == 0 {
-			return true, i
+			return false, i
+		}
+		if strToMetricsType[r.Spec.Type] == Histogram {
+			if !validBuckets(r.Spec.Buckets) {
+				return false, i
+			}
 		}
 	}
-	return false, -1
+	return true, -1
 }
 
 func invalidDataLabel(specLabel []string, dataLabel map[string]string) bool {
@@ -273,89 +430,31 @@ func Register(yamlData []byte) error {
 		return fmt.Errorf("%s: %w", recipe[i].Spec.Name, ConflictErr)
 	}
 
-	if result, i := invalidSpec(recipe); result {
-		return fmt.Errorf("invalid metrics spec. name: %s, type: %s, labels: %v",
-			recipe[i].Spec.Name, recipe[i].Spec.Type, recipe[i].Spec.Labels)
+	if result, i := validSpec(recipe); !result {
+		return fmt.Errorf("invalid metrics spec. name: %s, type: %s, labels: %v, buckets: %v",
+			recipe[i].Spec.Name, recipe[i].Spec.Type, recipe[i].Spec.Labels, recipe[i].Spec.Buckets)
 	}
 
 	for _, r := range recipe {
 		switch strToMetricsType[r.Spec.Type] {
 		case Counter:
-			if _, ok := counterExporters[r.Spec.Name]; ok {
-				clearSpecifiedMetrics(r.Spec.Name)
+			exporter, err := newCounterExporter(&r)
+			if err != nil {
+				return err
 			}
-
-			counterVec := promauto.NewCounterVec(
-				prometheus.CounterOpts{
-					Name: r.Spec.Name,
-				},
-				r.Spec.Labels,
-			)
-
-			var pmds []*parsedMetricsData
-			for _, metData := range r.Data {
-				parsedSeq, err := parseSequence(metData.Sequence)
-				if err != nil {
-					return err
-				}
-
-				if !ascending(parsedSeq) {
-					return fmt.Errorf("sequence must be in the ascending order.")
-				}
-
-				labels := make(map[string]string)
-				for _, l := range metData.Labels {
-					labels[l.Key] = l.Value
-				}
-				if invalidDataLabel(r.Spec.Labels, labels) {
-					return fmt.Errorf("data label is invalid: %v", labels)
-				}
-
-				pmds = append(pmds, &parsedMetricsData{
-					labels:   labels,
-					sequence: parsedSeq,
-				})
-			}
-			counterExporters[r.Spec.Name] = &counterExporter{
-				counterVec:        counterVec,
-				parsedMetricsData: pmds,
-			}
+			counterExporters[r.Spec.Name] = exporter
 		case Gauge:
-			if _, ok := gaugeExporters[r.Spec.Name]; ok {
-				clearSpecifiedMetrics(r.Spec.Name)
+			exporter, err := newGaugeExporter(&r)
+			if err != nil {
+				return err
 			}
-
-			gaugeVec := promauto.NewGaugeVec(
-				prometheus.GaugeOpts{
-					Name: r.Spec.Name,
-				},
-				r.Spec.Labels,
-			)
-
-			var pmds []*parsedMetricsData
-			for _, metData := range r.Data {
-				parsedSeq, err := parseSequence(metData.Sequence)
-				if err != nil {
-					return err
-				}
-
-				labels := make(map[string]string)
-				for _, l := range metData.Labels {
-					labels[l.Key] = l.Value
-				}
-				if invalidDataLabel(r.Spec.Labels, labels) {
-					return fmt.Errorf("data label is invalid: %v", labels)
-				}
-
-				pmds = append(pmds, &parsedMetricsData{
-					labels:   labels,
-					sequence: parsedSeq,
-				})
+			gaugeExporters[r.Spec.Name] = exporter
+		case Histogram:
+			exporter, err := newHistogramExporter(&r)
+			if err != nil {
+				return err
 			}
-			gaugeExporters[r.Spec.Name] = &gaugeExporter{
-				gaugeVec:          gaugeVec,
-				parsedMetricsData: pmds,
-			}
+			histogramExporters[r.Spec.Name] = exporter
 		default:
 			panic(fmt.Sprintf("unknown type: %d", types[r.Spec.Name]))
 		}
@@ -385,6 +484,10 @@ func Update() {
 	}
 
 	for metName, exporter := range gaugeExporters {
+		exporter.update(metName)
+	}
+
+	for metName, exporter := range histogramExporters {
 		exporter.update(metName)
 	}
 }
@@ -423,6 +526,21 @@ func Clear(force bool) {
 			toBeDeletedMetrics = append(toBeDeletedMetrics, metName)
 		}
 	}
+
+	for metName, exporter := range histogramExporters {
+		shouldBeRemoved := true
+		if !force {
+			for _, pmd := range exporter.parsedMetricsData {
+				if len(pmd.sequence) != 0 {
+					shouldBeRemoved = false
+				}
+			}
+		}
+		if shouldBeRemoved {
+			toBeDeletedMetrics = append(toBeDeletedMetrics, metName)
+		}
+	}
+
 	for _, metName := range toBeDeletedMetrics {
 		clearSpecifiedMetrics(metName)
 	}
@@ -441,6 +559,11 @@ func clearSpecifiedMetrics(metricsName string) {
 			log.Printf("unregister failed. metricsName = %s", metricsName)
 		}
 		delete(gaugeExporters, metricsName)
+	case Histogram:
+		if !prometheus.Unregister(histogramExporters[metricsName].histogramVec) {
+			log.Printf("unregister failed. metricsName = %s", metricsName)
+		}
+		delete(histogramExporters, metricsName)
 	default:
 		panic(fmt.Sprintf("unknown type: %d", types[metricsName]))
 	}

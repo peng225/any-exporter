@@ -1,0 +1,20 @@
+spec:
+  name: test3
+  type: histogram
+  labels:
+  - ccc
+  - ddd
+  buckets: [0.5, 1, 2, 4, 8, 16, 32]
+data:
+- labels:
+  - key: ccc
+    value: ccc_val1
+  - key: ddd
+    value: ddd_val1
+  sequence: '1 2 50'
+- labels:
+  - key: ccc
+    value: ccc_val2
+  - key: ddd
+    value: ddd_val2
+  sequence: '0+3x2'

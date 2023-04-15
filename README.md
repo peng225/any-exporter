@@ -21,8 +21,9 @@ You need to specify the following items in a YAML file.
 
 - spec
   - name: Metrics name
-  - type: Metrics type (currently, only counter and gauge are supported)
+  - type: Metrics type (currently, only counter, gauge and histogram are supported)
   - labels: The list of metrics labels
+  - buckets: Histogram buckets (only for histogram metrics)
 - data
   - labels: The list of the key and value.
     - key: The key's name
@@ -31,7 +32,7 @@ You need to specify the following items in a YAML file.
 
 You can define several metrics in a YAML file.
 
-See also [the sample file](https://github.com/peng225/any-exporter/blob/main/e2e/recipe.yaml).
+See also [the sample file](https://github.com/peng225/any-exporter/blob/main/e2e/counter-and-gauge.yaml).
 
 ### API reference
 
