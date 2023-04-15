@@ -195,3 +195,49 @@ func TestAscending(t *testing.T) {
 		})
 	}
 }
+
+func TestValidBuckets(t *testing.T) {
+	cases := []struct {
+		desc           string
+		buckets        []float64
+		expectedResult bool
+	}{
+		{
+			desc:           "strictly increasing from a positive number",
+			buckets:        []float64{1, 2.5, 5, 7.5},
+			expectedResult: true,
+		},
+		{
+			desc:           "single value",
+			buckets:        []float64{0.5},
+			expectedResult: true,
+		},
+		{
+			desc:           "descending order",
+			buckets:        []float64{2, 3, 5, 4, 7},
+			expectedResult: false,
+		},
+		{
+			desc:           "starts with zero",
+			buckets:        []float64{0, 1, 2},
+			expectedResult: false,
+		},
+		{
+			desc:           "starts with a negative value",
+			buckets:        []float64{-1, 1, 2},
+			expectedResult: false,
+		},
+		{
+			desc:           "same value",
+			buckets:        []float64{1, 2, 2, 3},
+			expectedResult: false,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.desc, func(t *testing.T) {
+			result := validBuckets(tt.buckets)
+			assert.Equal(t, tt.expectedResult, result)
+		})
+	}
+}
