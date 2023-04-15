@@ -294,19 +294,19 @@ func conflict(recipe []metricsRecipe) (bool, int) {
 	return false, -1
 }
 
-func invalidSpec(recipe []metricsRecipe) (bool, int) {
+func validSpec(recipe []metricsRecipe) (bool, int) {
 	for i, r := range recipe {
 		if r.Spec.Name == "" {
-			return true, i
+			return false, i
 		}
 		if _, ok := strToMetricsType[r.Spec.Type]; !ok {
-			return true, i
+			return false, i
 		}
 		if len(r.Spec.Labels) == 0 {
-			return true, i
+			return false, i
 		}
 	}
-	return false, -1
+	return true, -1
 }
 
 func invalidDataLabel(specLabel []string, dataLabel map[string]string) bool {
@@ -347,7 +347,7 @@ func Register(yamlData []byte) error {
 		return fmt.Errorf("%s: %w", recipe[i].Spec.Name, ConflictErr)
 	}
 
-	if result, i := invalidSpec(recipe); result {
+	if result, i := validSpec(recipe); !result {
 		return fmt.Errorf("invalid metrics spec. name: %s, type: %s, labels: %v",
 			recipe[i].Spec.Name, recipe[i].Spec.Type, recipe[i].Spec.Labels)
 	}
