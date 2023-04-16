@@ -108,7 +108,7 @@ func (ce *counterExporter) update(metName string) {
 	}
 	toBeDeletedDataIndex := make([]int, 0)
 	for i, pmd := range ce.parsedMetricsData {
-		ce.counterVec.With(pmd.labels).Add(float64(pmd.sequence[0]) - pmd.prevData)
+		ce.counterVec.With(pmd.labels).Add(pmd.sequence[0] - pmd.prevData)
 		pmd.prevData = pmd.sequence[0]
 		pmd.sequence = pmd.sequence[1:]
 		if len(pmd.sequence) == 0 {
@@ -165,7 +165,7 @@ func (ga *gaugeExporter) update(metName string) {
 	}
 	toBeDeletedDataIndex := make([]int, 0)
 	for i, pmd := range ga.parsedMetricsData {
-		ga.gaugeVec.With(pmd.labels).Set(float64(pmd.sequence[0]))
+		ga.gaugeVec.With(pmd.labels).Set(pmd.sequence[0])
 		pmd.sequence = pmd.sequence[1:]
 		if len(pmd.sequence) == 0 {
 			log.Printf("empty value found for %s.", metName)
@@ -222,7 +222,7 @@ func (hi *histogramExporter) update(metName string) {
 	}
 	toBeDeletedDataIndex := make([]int, 0)
 	for i, pmd := range hi.parsedMetricsData {
-		hi.histogramVec.With(pmd.labels).Observe(float64(pmd.sequence[0]))
+		hi.histogramVec.With(pmd.labels).Observe(pmd.sequence[0])
 		pmd.sequence = pmd.sequence[1:]
 		if len(pmd.sequence) == 0 {
 			log.Printf("empty value found for %s.", metName)
