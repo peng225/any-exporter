@@ -119,23 +119,28 @@ func TestHistogram(t *testing.T) {
 
 	// get metrics 1
 	metrics := getMetrics(t)
-	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val1",ddd="ddd_val1",le="0.5"} 0`), metrics)
-	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val1",ddd="ddd_val1",le="1"} 1`), metrics)
-	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val2",ddd="ddd_val2",le="0.5"} 1`), metrics)
+	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val1",ddd="ddd_val1",le="0.5"} 11`), metrics)
+	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val1",ddd="ddd_val1",le="1"} 17`), metrics)
+	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val1",ddd="ddd_val1",le="2"} 26`), metrics)
+	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val2",ddd="ddd_val2",le="1"} 0`), metrics)
+	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val2",ddd="ddd_val2",le="2"} 10`), metrics)
+	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val2",ddd="ddd_val2",le="4"} 16`), metrics)
+	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val2",ddd="ddd_val2",le="16"} 25`), metrics)
 
 	// get metrics 2
 	metrics = getMetrics(t)
-	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val1",ddd="ddd_val1",le="1"} 1`), metrics)
-	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val1",ddd="ddd_val1",le="2"} 2`), metrics)
-	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val2",ddd="ddd_val2",le="2"} 1`), metrics)
-	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val2",ddd="ddd_val2",le="4"} 2`), metrics)
+	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val1",ddd="ddd_val1",le="0.5"} 25`), metrics)
+	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val1",ddd="ddd_val1",le="4"} 40`), metrics)
+	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val1",ddd="ddd_val1",le="8"} 53`), metrics)
+	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val2",ddd="ddd_val2",le="0.5"} 3`), metrics)
+	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val2",ddd="ddd_val2",le="2"} 13`), metrics)
+	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val2",ddd="ddd_val2",le="4"} 23`), metrics)
 
 	// get metrics 3 (the value of test3_bucket will be drained)
 	metrics = getMetrics(t)
-	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val1",ddd="ddd_val1",le="32"} 2`), metrics)
-	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val1",ddd="ddd_val1",le="+Inf"} 3`), metrics)
-	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val2",ddd="ddd_val2",le="4"} 2`), metrics)
-	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val2",ddd="ddd_val2",le="8"} 3`), metrics)
+	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val1",ddd="ddd_val1",le="32"} 53`), metrics)
+	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val1",ddd="ddd_val1",le="+Inf"} 56`), metrics)
+	assert.True(t, strings.Contains(metrics, `test3_bucket{ccc="ccc_val2",ddd="ddd_val2",le="4"} 23`), metrics)
 
 	// delete recipe
 	deleteMetrics(t, false)

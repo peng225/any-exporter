@@ -11,10 +11,15 @@ data:
     value: ccc_val1
   - key: ddd
     value: ddd_val1
-  sequence: '1 2 50'
+  observedValues:
+  - '0x10 0.8x5 2x8'
+  - '0x13 6x12'
+  - '35x2'
 - labels:
   - key: ccc
     value: ccc_val2
   - key: ddd
     value: ddd_val2
-  sequence: '0+3x2'
+  observedValues:
+  - '1.2x9 3x5 16x8'
+  - '0x2 3x3'
