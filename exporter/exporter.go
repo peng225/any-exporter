@@ -61,7 +61,6 @@ type parsedMetricsData struct {
 	sequence []float64
 	// For histogram
 	observedValues [][]float64
-	prevData       float64
 }
 
 type counterExporter struct {
@@ -84,8 +83,8 @@ func newCounterExporter(recipe *metricsRecipe) (*counterExporter, error) {
 			return nil, err
 		}
 
-		if !ascending(parsedSeq) {
-			return nil, fmt.Errorf("sequence must be in the ascending order.")
+		if !allPositive(parsedSeq) {
+			return nil, fmt.Errorf("values in a sequence of counter must be all positive.")
 		}
 
 		labels := make(map[string]string)
@@ -114,8 +113,7 @@ func (ce *counterExporter) update(metName string) {
 	}
 	toBeDeletedDataIndex := make([]int, 0)
 	for i, pmd := range ce.parsedMetricsData {
-		ce.counterVec.With(pmd.labels).Add(pmd.sequence[0] - pmd.prevData)
-		pmd.prevData = pmd.sequence[0]
+		ce.counterVec.With(pmd.labels).Add(pmd.sequence[0])
 		pmd.sequence = pmd.sequence[1:]
 		if len(pmd.sequence) == 0 {
 			log.Printf("empty value found for %s.", metName)
@@ -427,17 +425,14 @@ func invalidDataLabel(specLabel []string, dataLabel map[string]string) bool {
 	return false
 }
 
-func ascending(sequence []float64) bool {
-	prev := float64(0)
-	for i, val := range sequence {
-		if i != 0 && prev > val {
+func allPositive(sequence []float64) bool {
+	for _, val := range sequence {
+		if val < 0 {
 			return false
 		}
-		prev = val
 	}
 	return true
 }
-
 func Register(yamlData []byte) error {
 	mu.Lock()
 	defer mu.Unlock()

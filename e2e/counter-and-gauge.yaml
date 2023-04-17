@@ -10,13 +10,13 @@ data:
     value: aaa_val1
   - key: bbb
     value: bbb_val1
-  sequence: '1+1x2 3'
+  sequence: '4+1x2 3'
 - labels:
   - key: aaa
     value: aaa_val1
   - key: bbb
     value: bbb_val2
-  sequence: '0 1 1+0x4'
+  sequence: '0 2x2 1+0x4'
 ---
 spec:
   name: test2

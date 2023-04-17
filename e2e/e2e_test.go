@@ -70,36 +70,36 @@ func TestCounterAndGauge(t *testing.T) {
 
 	// get metrics 1
 	metrics := getMetrics(t)
-	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val1"} 1`))
-	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val2"} 0`))
-	assert.True(t, strings.Contains(metrics, `test2{aaa="aaa_val2",ccc="ccc_val1"} 0`))
+	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val1"} 4`), metrics)
+	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val2"} 0`), metrics)
+	assert.True(t, strings.Contains(metrics, `test2{aaa="aaa_val2",ccc="ccc_val1"} 0`), metrics)
 
 	// get metrics 2
 	metrics = getMetrics(t)
-	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val1"} 2`))
-	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val2"} 1`))
-	assert.True(t, strings.Contains(metrics, `test2{aaa="aaa_val2",ccc="ccc_val1"} 1`))
+	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val1"} 9`), metrics)
+	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val2"} 2`), metrics)
+	assert.True(t, strings.Contains(metrics, `test2{aaa="aaa_val2",ccc="ccc_val1"} 1`), metrics)
 
 	// get metrics 3 (the value of test2 will be drained)
 	metrics = getMetrics(t)
-	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val1"} 3`))
-	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val2"} 1`))
-	assert.True(t, strings.Contains(metrics, `test2{aaa="aaa_val2",ccc="ccc_val1"} 0`))
+	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val1"} 15`), metrics)
+	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val2"} 4`), metrics)
+	assert.True(t, strings.Contains(metrics, `test2{aaa="aaa_val2",ccc="ccc_val1"} 0`), metrics)
 
 	// get metrics 4 (the value of test1{aaa="aaa_val1", bbb="bbb_val1"} will be drained)
 	metrics = getMetrics(t)
-	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val1"} 3`))
-	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val2"} 1`))
-	assert.True(t, strings.Contains(metrics, `test2{aaa="aaa_val2",ccc="ccc_val1"} 0`))
+	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val1"} 18`), metrics)
+	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val2"} 6`), metrics)
+	assert.True(t, strings.Contains(metrics, `test2{aaa="aaa_val2",ccc="ccc_val1"} 0`), metrics)
 
 	// delete recipe
 	deleteMetrics(t, false)
 
 	// get metrics 5 (test2 should already be deleted)
 	metrics = getMetrics(t)
-	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val1"} 3`))
-	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val2"} 1`))
-	assert.False(t, strings.Contains(metrics, "test2"))
+	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val1"} 18`), metrics)
+	assert.True(t, strings.Contains(metrics, `test1{aaa="aaa_val1",bbb="bbb_val2"} 7`), metrics)
+	assert.False(t, strings.Contains(metrics, "test2"), metrics)
 
 	// force delete recipe
 	deleteMetrics(t, true)
