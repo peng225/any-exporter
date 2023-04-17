@@ -23,16 +23,17 @@ You need to specify the following items in a YAML file.
   - name: Metrics name
   - type: Metrics type (currently, only counter, gauge and histogram are supported)
   - labels: The list of metrics labels
-  - buckets: Histogram buckets (only for histogram metrics)
+  - buckets (for histogram): Histogram buckets
 - data
   - labels: The list of the key and value.
     - key: The key's name
     - value: The value of the key
-  - sequence: The exported sequence of the values. You can define the sequence by using the notation for [Prometheus's unit test](https://prometheus.io/docs/prometheus/latest/configuration/unit_testing_rules/#series) without '_' which specifies the missing sample. Each value is exported in order every time the metrics are scraped.
+  - sequence (for counter and gauge): The exported sequence of the values. You can define the sequence by using the notation for [Prometheus's unit test](https://prometheus.io/docs/prometheus/latest/configuration/unit_testing_rules/#series) without '_' which specifies the missing sample. Each value is exported in order every time the metrics are scraped. Note that each value in a sequence of counter means to-be-added value while that of counter does the actual exported value.
+  - observedValues (for histogram): The list of observed values. Each list item is consumed one by one every time the metrics are scraped. Though you can use Prometheus's unit test notation here, the semantics is quite different from those of counter and gauge. All values specified in a list item are digested at the same scraping time.
 
 You can define several metrics in a YAML file.
 
-See also [the sample file](https://github.com/peng225/any-exporter/blob/main/e2e/counter-and-gauge.yaml).
+See also the sample files in `e2e` directory.
 
 ### API reference
 
