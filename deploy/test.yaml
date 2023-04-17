@@ -7,39 +7,39 @@ spec:
 data:
 - labels:
   - key: aaa
-    value: "hoge1"
+    value: "foo1"
   - key: bbb
-    value: "fuga1"
+    value: "bar1"
   sequence: '3x100'
 - labels:
   - key: aaa
-    value: "hoge1"
+    value: "foo1"
   - key: bbb
-    value: "fuga2"
+    value: "bar2"
   sequence: '6x100'
 - labels:
   - key: aaa
-    value: "hoge1"
+    value: "foo1"
   - key: bbb
-    value: "fuga3"
+    value: "bar3"
   sequence: '8x100'
 - labels:
   - key: aaa
-    value: "hoge2"
+    value: "foo2"
   - key: bbb
-    value: "fuga1"
+    value: "bar1"
   sequence: '10x100'
 - labels:
   - key: aaa
-    value: "hoge2"
+    value: "foo2"
   - key: bbb
-    value: "fuga2"
+    value: "bar2"
   sequence: '12x100'
 - labels:
   - key: aaa
-    value: "hoge2"
+    value: "foo2"
   - key: bbb
-    value: "fuga3"
+    value: "bar3"
   sequence: '14x100'
 ---
 spec:
@@ -50,9 +50,9 @@ spec:
 data:
 - labels:
   - key: bbb
-    value: "fuga1"
+    value: "bar1"
   sequence: '1x100'
 - labels:
   - key: bbb
-    value: "fuga4"
+    value: "bar4"
   sequence: '1x100'
