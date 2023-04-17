@@ -29,6 +29,8 @@ func main() {
 	http.Handle("/metrics", metricsHandler)
 	http.HandleFunc("/recipe", web.RecipeHandler)
 	http.HandleFunc("/health", web.HealthHandler)
+
+	log.Printf("Start listening on port %d.", *port)
 	err := http.ListenAndServe(net.JoinHostPort("", strconv.Itoa(*port)), nil)
 	if err != nil {
 		log.Println(err)

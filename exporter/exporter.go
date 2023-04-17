@@ -43,8 +43,11 @@ type spec struct {
 }
 
 type metricsData struct {
-	Labels   []label `yaml:"labels"`
-	Sequence string  `yaml:"sequence"`
+	Labels []label `yaml:"labels"`
+	// For counter and gauge
+	Sequence string `yaml:"sequence"`
+	// For histogram
+	ObservedValues []string `yaml:"observedValues"`
 }
 
 type label struct {
@@ -53,9 +56,12 @@ type label struct {
 }
 
 type parsedMetricsData struct {
-	labels   map[string]string
+	labels map[string]string
+	// For counter and gauge
 	sequence []float64
-	prevData float64
+	// For histogram
+	observedValues [][]float64
+	prevData       float64
 }
 
 type counterExporter struct {
@@ -108,7 +114,7 @@ func (ce *counterExporter) update(metName string) {
 	}
 	toBeDeletedDataIndex := make([]int, 0)
 	for i, pmd := range ce.parsedMetricsData {
-		ce.counterVec.With(pmd.labels).Add(float64(pmd.sequence[0]) - pmd.prevData)
+		ce.counterVec.With(pmd.labels).Add(pmd.sequence[0] - pmd.prevData)
 		pmd.prevData = pmd.sequence[0]
 		pmd.sequence = pmd.sequence[1:]
 		if len(pmd.sequence) == 0 {
@@ -165,7 +171,7 @@ func (ga *gaugeExporter) update(metName string) {
 	}
 	toBeDeletedDataIndex := make([]int, 0)
 	for i, pmd := range ga.parsedMetricsData {
-		ga.gaugeVec.With(pmd.labels).Set(float64(pmd.sequence[0]))
+		ga.gaugeVec.With(pmd.labels).Set(pmd.sequence[0])
 		pmd.sequence = pmd.sequence[1:]
 		if len(pmd.sequence) == 0 {
 			log.Printf("empty value found for %s.", metName)
@@ -191,7 +197,7 @@ func newHistogramExporter(recipe *metricsRecipe) (*histogramExporter, error) {
 
 	var pmds []*parsedMetricsData
 	for _, metData := range recipe.Data {
-		parsedSeq, err := parseSequence(metData.Sequence)
+		parsedValues, err := parseObservedValues(metData.ObservedValues)
 		if err != nil {
 			return nil, err
 		}
@@ -205,8 +211,8 @@ func newHistogramExporter(recipe *metricsRecipe) (*histogramExporter, error) {
 		}
 
 		pmds = append(pmds, &parsedMetricsData{
-			labels:   labels,
-			sequence: parsedSeq,
+			labels:         labels,
+			observedValues: parsedValues,
 		})
 	}
 
@@ -222,9 +228,11 @@ func (hi *histogramExporter) update(metName string) {
 	}
 	toBeDeletedDataIndex := make([]int, 0)
 	for i, pmd := range hi.parsedMetricsData {
-		hi.histogramVec.With(pmd.labels).Observe(float64(pmd.sequence[0]))
-		pmd.sequence = pmd.sequence[1:]
-		if len(pmd.sequence) == 0 {
+		for _, v := range pmd.observedValues[0] {
+			hi.histogramVec.With(pmd.labels).Observe(v)
+		}
+		pmd.observedValues = pmd.observedValues[1:]
+		if len(pmd.observedValues) == 0 {
 			log.Printf("empty value found for %s.", metName)
 			toBeDeletedDataIndex = append(toBeDeletedDataIndex, i)
 		}
@@ -322,6 +330,20 @@ func parseSequence(sequence string) ([]float64, error) {
 			}
 			result = append(result, val)
 		}
+	}
+
+	return result, nil
+}
+
+func parseObservedValues(values []string) ([][]float64, error) {
+	result := make([][]float64, 0)
+
+	for _, seq := range values {
+		parsedSeq, err := parseSequence(seq)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, parsedSeq)
 	}
 
 	return result, nil
@@ -531,7 +553,7 @@ func Clear(force bool) {
 		shouldBeRemoved := true
 		if !force {
 			for _, pmd := range exporter.parsedMetricsData {
-				if len(pmd.sequence) != 0 {
+				if len(pmd.observedValues) != 0 {
 					shouldBeRemoved = false
 				}
 			}
