@@ -1,5 +1,5 @@
-KIND_VERSION := v0.17.0
-HELM_VERSION := v3.11.2
+KIND_VERSION := v0.19.0
+HELM_VERSION := v3.12.0
 KIND := bin/kind_$(KIND_VERSION)
 HELM := bin/helm_$(HELM_VERSION)
 ANY_EXPORTER := ../any-exporter
